@@ -5,6 +5,59 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Scene } from './components/Scene';
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls';
+import { EffectComposer as ThreeEffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+
+// Psychedelic transition shader
+const PsychedelicTransitionShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    time: { value: 0 },
+    amplitude: { value: 0 },
+    colorCycle: { value: 0 },
+    distortion: { value: 0.5 }
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float time;
+    uniform float amplitude;
+    uniform float colorCycle;
+    uniform float distortion;
+    varying vec2 vUv;
+
+    vec3 hsv2rgb(vec3 c) {
+      vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+      vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+      return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+    }
+
+    void main() {
+      vec2 uv = vUv;
+      
+      // Apply wave distortion based on amplitude
+      float wave = sin(uv.y * 10.0 + time) * cos(uv.x * 8.0 - time * 0.5);
+      uv.x += wave * amplitude * distortion * 0.02;
+      uv.y += wave * amplitude * distortion * 0.015;
+      
+      // Color cycling
+      vec4 texel = texture2D(tDiffuse, uv);
+      float hue = fract(colorCycle + length(uv - 0.5) * 0.2);
+      vec3 psychColor = hsv2rgb(vec3(hue, 0.7, texel.r));
+      
+      // Mix original and psychedelic colors based on amplitude
+      gl_FragColor = vec4(mix(texel.rgb, psychColor, amplitude * 0.7), 1.0);
+    }
+  `
+};
 import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls';
 import { EffectComposer as ThreeEffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
@@ -551,6 +604,11 @@ export default function Page() {
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
+    // Add psychedelic transition pass
+    const psychedelicPass = new ShaderPass(PsychedelicTransitionShader);
+    psychedelicPass.uniforms.distortion.value = 0.5;
+    composer.addPass(psychedelicPass);
+
     const currentPresetConfig = PRESETS[currentPreset];
     const isPerformanceMode = currentPresetConfig.performanceMode;
 
@@ -920,6 +978,26 @@ export default function Page() {
           volumetricPass.uniforms.lightPosition.value.set(lightX, lightY);
           volumetricPass.uniforms.exposure.value = 0.3 + ((frequencyBandsRef.current?.lowerMid ?? 0) * 0.15 + (frequencyBandsRef.current?.mid ?? 0) * 0.15);
           volumetricPass.uniforms.density.value = 0.4 + ((frequencyBandsRef.current?.upperMid ?? 0) * 0.2 + (frequencyBandsRef.current?.presence ?? 0) * 0.2);
+        }
+
+        // Update psychedelic transition shader
+        const psychedelicPass = composerRef.current?.passes.find(
+          (pass): pass is PsychedelicShaderPass => 
+            pass instanceof ShaderPass && 
+            'uniforms' in pass && 
+            'time' in pass.uniforms &&
+            'amplitude' in pass.uniforms &&
+            'colorCycle' in pass.uniforms
+        );
+
+        if (psychedelicPass) {
+          psychedelicPass.uniforms.time.value = timeRef.current;
+          psychedelicPass.uniforms.amplitude.value = (
+            frequencyBandsRef.current?.subBass ?? 0 +
+            frequencyBandsRef.current?.bass ?? 0
+          ) * 0.5;
+          psychedelicPass.uniforms.colorCycle.value = timeRef.current * 0.1;
+          psychedelicPass.uniforms.distortion.value = currentPresetConfig.psychedelicIntensity ?? 0.5;
         }
 
         // Update sacred geometry colors and transformations
