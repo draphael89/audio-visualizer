@@ -1,4 +1,4 @@
-import { Uniform, ShaderMaterial } from 'three';
+import { Uniform } from 'three';
 
 interface ChromaticAberrationUniforms {
   tDiffuse: { value: null | THREE.Texture };

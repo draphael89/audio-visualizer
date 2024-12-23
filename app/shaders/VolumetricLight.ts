@@ -1,4 +1,4 @@
-import { Vector2, Uniform, ShaderMaterial } from 'three';
+import { Vector2, Uniform } from 'three';
 
 interface VolumetricLightUniforms {
   tDiffuse: { value: null | THREE.Texture };

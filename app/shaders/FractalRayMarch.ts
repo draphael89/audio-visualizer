@@ -1,4 +1,4 @@
-import { ShaderMaterial, Uniform, Vector2 } from 'three';
+import { Uniform } from 'three';
 
 interface FractalRayMarchUniforms {
   tDiffuse: { value: null | THREE.Texture };
