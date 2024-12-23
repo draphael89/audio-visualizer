@@ -243,6 +243,7 @@ export default function Page() {
     setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
+  // Audio analyzer state with proper typing
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const composerRef = useRef<EffectComposer | undefined>(undefined);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
@@ -534,8 +535,6 @@ export default function Page() {
     // Add film grain and scanlines
     const filmPass = new FilmPass(
       0.35, // noise intensity
-      0.025, // scanline intensity
-      648, // scanline count
       false // grayscale
     );
     composer.addPass(filmPass);
@@ -872,7 +871,7 @@ export default function Page() {
     };
 
     animate();
-  }, [analyser, currentPreset, PRESETS]);
+  }, [analyser, currentPreset]);
 
   useEffect(() => {
     const audio = new Audio(selectedTrack);

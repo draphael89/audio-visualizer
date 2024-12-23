@@ -1,5 +1,3 @@
-import { Uniform } from 'three';
-
 export const FractalRayMarchShader = {
   uniforms: {
     'tDiffuse': { value: null },
