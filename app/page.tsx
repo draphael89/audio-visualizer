@@ -3,7 +3,6 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { EffectComposer as R3FEffectComposer } from '@react-three/postprocessing';
 import { Scene } from './components/Scene';
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls';
 import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls';
@@ -50,7 +49,7 @@ const FluidDistortionShader = {
 };
 import { Controls } from './components/Controls';
 import { FPSStats } from './components/FPSStats';
-import { PRESETS, type VisualPreset, type FrequencyBands } from './types';
+import { PRESETS, type VisualPreset, type FrequencyBands, type ExtendedEffectComposer } from './types';
 import { FractalRayMarchShader } from './shaders/FractalRayMarch';
 import { createHyperbolicTiling, mergeGeometries } from './components/HyperbolicTiling';
 
@@ -218,7 +217,9 @@ interface ParticleSystem {
     positions: Float32Array;
     line: THREE.Line;
     head: number;
+    maxPoints?: number;
   };
+  dispose?: () => void;
 }
 
 export default function Page() {
@@ -484,9 +485,9 @@ export default function Page() {
 
     if (composerRef.current) {
       // Update bloom pass
-      const bloomPass = composerRef.current.passes.find(
-        (pass: Pass) => pass instanceof UnrealBloomPass
-      ) as UnrealBloomPass;
+      const bloomPass = composerRef.current?.passes.find(
+        (pass): pass is UnrealBloomPass => pass instanceof UnrealBloomPass
+      );
       
       if (bloomPass) {
         bloomPass.strength = presetConfig.performanceMode ? 
@@ -494,10 +495,25 @@ export default function Page() {
           presetConfig.bloomStrength;
       }
 
+      interface FractalShaderPass extends ShaderPass {
+        uniforms: {
+          maxIterations: { value: number };
+          u_resolution: { value: [number, number] };
+          u_frequencyData: { value: Float32Array };
+          u_complexity: { value: number };
+        };
+      }
+
       // Update fractal pass
-      const fractalPass = composerRef.current.passes.find(
-        (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'maxIterations' in pass.uniforms
-      ) as ShaderPass | undefined;
+      const fractalPass = composerRef.current?.passes.find(
+        (pass): pass is FractalShaderPass => 
+          pass instanceof ShaderPass && 
+          'uniforms' in pass && 
+          'maxIterations' in pass.uniforms &&
+          'u_resolution' in pass.uniforms &&
+          'u_frequencyData' in pass.uniforms &&
+          'u_complexity' in pass.uniforms
+      );
 
       if (fractalPass && presetConfig.performanceMode) {
         fractalPass.uniforms.maxIterations.value = Math.min(fractalPass.uniforms.maxIterations.value, 8);
@@ -614,7 +630,7 @@ export default function Page() {
     composerRef.current = composer;
     particleSystemsRef.current = systems;
 
-    const handleResize = () => {
+    const handleResize = (): void => {
       if (!camera || !renderer || !composer) return;
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -622,7 +638,7 @@ export default function Page() {
       composer.setSize(window.innerWidth, window.innerHeight);
     };
 
-    const handleKeyPress = (event: KeyboardEvent) => {
+    const handleKeyPress = (event: KeyboardEvent): void => {
       switch(event.key) {
         case ' ':
           togglePlay();
@@ -647,9 +663,20 @@ export default function Page() {
             document.documentElement.requestFullscreen();
           } else {
             // Adjust fluid distortion intensity
+            interface FluidShaderPass extends ShaderPass {
+              uniforms: {
+                distortionAmount: { value: number };
+                frequency: { value: number };
+              };
+            }
+
             const fluidPass = composerRef.current?.passes.find(
-              (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'distortionAmount' in pass.uniforms
-            ) as ShaderPass | undefined;
+              (pass): pass is FluidShaderPass => 
+                pass instanceof ShaderPass && 
+                'uniforms' in pass && 
+                'distortionAmount' in pass.uniforms &&
+                'frequency' in pass.uniforms
+            );
             if (fluidPass) {
               const currentAmount = fluidPass.uniforms.distortionAmount.value;
               fluidPass.uniforms.distortionAmount.value = ((currentAmount * 10 + 1) % 10) / 10;
@@ -684,7 +711,7 @@ export default function Page() {
       }
     };
 
-    const handleMouseDown = (event: MouseEvent) => {
+    const handleMouseDown = (event: MouseEvent): void => {
       if (event.button === 1) { // Middle click
         // Cycle through geometry types
         const geometryTypes = ['flower', 'metatron', 'spiral', 'default', 'hyperbolic', 'mergedSacred', 'fractal'] as const;
@@ -834,17 +861,44 @@ export default function Page() {
           fractalPass.uniforms.u_complexity.value = 1.0 + ((frequencyBandsRef.current?.upperMid ?? 0) * 2.0);
 
         // Update shader uniforms for all effect passes
-        const fluidPass = (composerRef.current as unknown as { passes: Pass[] })?.passes.find(
+        const fluidPass = (composerRef.current as ExtendedEffectComposer)?.passes.find(
           (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'distortionAmount' in pass.uniforms
         ) as ShaderPass;
         
-        const chromaticPass = composerRef.current.passes.find(
-          (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'distortion' in pass.uniforms
-        ) as ShaderPass;
+        interface ChromaticShaderPass extends ShaderPass {
+          uniforms: {
+            distortion: { value: number };
+            time: { value: number };
+          };
+        }
 
-        const volumetricPass = composerRef.current.passes.find(
-          (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'exposure' in pass.uniforms
-        ) as ShaderPass;
+        const chromaticPass = composerRef.current?.passes.find(
+          (pass): pass is ChromaticShaderPass => 
+            pass instanceof ShaderPass && 
+            'uniforms' in pass && 
+            'distortion' in pass.uniforms
+        );
+
+        interface VolumetricShaderPass extends ShaderPass {
+          uniforms: {
+            exposure: { value: number };
+            decay: { value: number };
+            density: { value: number };
+            weight: { value: number };
+            lightPosition: { value: THREE.Vector2 };
+          };
+        }
+
+        const volumetricPass = composerRef.current?.passes.find(
+          (pass): pass is VolumetricShaderPass => 
+            pass instanceof ShaderPass && 
+            'uniforms' in pass && 
+            'exposure' in pass.uniforms &&
+            'decay' in pass.uniforms &&
+            'density' in pass.uniforms &&
+            'weight' in pass.uniforms &&
+            'lightPosition' in pass.uniforms
+        );
 
         if (fluidPass) {
           fluidPass.uniforms.time.value = timeRef.current;

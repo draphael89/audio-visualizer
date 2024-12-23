@@ -1,14 +1,12 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useFrame, extend } from '@react-three/fiber';
+import { useFrame, useThree, extend, ThreeElements } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { OrbitControls } from '@react-three/drei';
+import type { OrbitControlsProps } from '@react-three/drei';
 import * as THREE from 'three';
-import { ReactNode } from 'react';
 
-type TouchEventHandler = (event: TouchEvent) => void;
-type DomElement = HTMLElement & { style: CSSStyleDeclaration };
-
-extend({
+extend({ 
+  OrbitControls,
   mesh: THREE.Mesh,
   sphereGeometry: THREE.SphereGeometry,
   meshStandardMaterial: THREE.MeshStandardMaterial,
@@ -17,37 +15,38 @@ extend({
   group: THREE.Group
 });
 
-// Add touch feedback state
+type TouchEventHandler = (event: TouchEvent) => void;
+
+// Touch feedback constants
 const MIN_TOUCH_TARGET = 44; // minimum touch target size in pixels
 
-interface ThreeElements {
-  group: { ref?: React.Ref<THREE.Group>; children?: ReactNode };
-  mesh: { ref?: React.Ref<THREE.Mesh>; scale?: number | [x: number, y: number, z: number]; children?: ReactNode };
-  sphereGeometry: { args?: [radius?: number, widthSegments?: number, heightSegments?: number] };
-  meshStandardMaterial: { color?: THREE.ColorRepresentation };
-  ambientLight: { intensity?: number };
-  pointLight: { position?: [x: number, y: number, z: number]; intensity?: number };
-}
+extend({ 
+  OrbitControls,
+  mesh: THREE.Mesh,
+  sphereGeometry: THREE.SphereGeometry,
+  meshStandardMaterial: THREE.MeshStandardMaterial,
+  ambientLight: THREE.AmbientLight,
+  pointLight: THREE.PointLight,
+  group: THREE.Group
+});
 
-extend({ OrbitControls });
+import { OrbitControls as OrbitControlsImpl } from '@react-three/drei';
+type OrbitControlsRef = React.ComponentRef<typeof OrbitControlsImpl>;
 
-declare module '@react-three/fiber' {
-  interface ThreeElements extends ThreeElements {}
-}
+export const Scene: React.FC = () => {
+  const { gl } = useThree();
+  const [isTouching, setIsTouching] = useState(false);
+  const orbitControlsRef = useRef<OrbitControlsRef>(null);
 
-export function Scene() {
   useFrame(() => {
     // Animation logic here
   });
-
-  const [isTouching, setIsTouching] = useState(false);
-  const orbitControlsRef = useRef<THREE.OrbitControls>(null);
 
   useEffect(() => {
     const controls = orbitControlsRef.current;
     if (!controls) return;
 
-    const handleTouchStart: TouchEventHandler = (event) => {
+    const handleTouchStart: TouchEventHandler = (event: TouchEvent): void => {
       setIsTouching(true);
       performance.mark('touch-start');
 
@@ -64,7 +63,7 @@ export function Scene() {
       }
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (): void => {
       setIsTouching(false);
       performance.mark('touch-end');
       performance.measure('touch-interaction', 'touch-start', 'touch-end');
@@ -77,20 +76,20 @@ export function Scene() {
       }
     };
 
-    const element = controls.domElement as DomElement;
+    const element = gl.domElement;
     if (element) {
       element.style.touchAction = 'none';
-      element.addEventListener('touchstart', handleTouchStart as EventListener);
-      element.addEventListener('touchend', handleTouchEnd as EventListener);
+      element.addEventListener('touchstart', handleTouchStart);
+      element.addEventListener('touchend', handleTouchEnd);
     }
 
     return () => {
       if (element) {
-        element.removeEventListener('touchstart', handleTouchStart as EventListener);
-        element.removeEventListener('touchend', handleTouchEnd as EventListener);
+        element.removeEventListener('touchstart', handleTouchStart);
+        element.removeEventListener('touchend', handleTouchEnd);
       }
     };
-  }, []);
+  }, [gl]);
 
   return (
     <>
