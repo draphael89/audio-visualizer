@@ -1,3 +1,12 @@
+import * as THREE from 'three';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
+import { Pass } from 'three/examples/jsm/postprocessing/Pass';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+
+export interface ExtendedEffectComposer extends EffectComposer {
+  passes: Pass[];
+}
+
 export interface FrequencyBands {
   subBass: number;    // 20-60Hz
   bass: number;       // 60-250Hz
@@ -6,6 +15,62 @@ export interface FrequencyBands {
   upperMid: number;   // 2-4kHz
   presence: number;   // 4-6kHz
   brilliance: number; // 6-20kHz
+}
+
+export interface AudioEventHandler {
+  onPlay?: (event: Event) => void;
+  onPause?: (event: Event) => void;
+  onEnded?: (event: Event) => void;
+  onError?: (event: ErrorEvent) => void;
+}
+
+export interface TouchEventHandler {
+  onTouchStart?: (event: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchMove?: (event: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchEnd?: (event: React.TouchEvent<HTMLDivElement>) => void;
+}
+
+export type UniformValue = number | THREE.Vector2 | THREE.Vector3 | THREE.Vector4 | Float32Array;
+
+export interface ShaderUniforms {
+  [key: string]: THREE.IUniform<UniformValue>;
+}
+
+export interface BaseShaderPass extends ShaderPass {
+  uniforms: ShaderUniforms;
+}
+
+export interface FluidShaderPass extends BaseShaderPass {
+  uniforms: {
+    distortionAmount: { value: number };
+    frequency: { value: number };
+  };
+}
+
+export interface ChromaticShaderPass extends BaseShaderPass {
+  uniforms: {
+    distortion: { value: number };
+    time: { value: number };
+  };
+}
+
+export interface VolumetricShaderPass extends BaseShaderPass {
+  uniforms: {
+    exposure: { value: number };
+    decay: { value: number };
+    density: { value: number };
+    weight: { value: number };
+    lightPosition: { value: THREE.Vector2 };
+  };
+}
+
+export interface FractalShaderPass extends Omit<BaseShaderPass, 'uniforms'> {
+  uniforms: ShaderUniforms & {
+    maxIterations: THREE.IUniform<number>;
+    u_resolution: THREE.IUniform<THREE.Vector2>;
+    u_frequencyData: THREE.IUniform<Float32Array>;
+    u_complexity: THREE.IUniform<number>;
+  };
 }
 
 export interface VisualPreset {
@@ -48,6 +113,7 @@ export interface VisualPreset {
   // Performance and accessibility
   reducedMotion?: boolean;
   performanceMode?: boolean;
+  highContrast?: boolean;
 }
 
 export const PRESETS: Record<string, VisualPreset> = {
@@ -156,4 +222,4 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryRotation: 0.002,
     pulseIntensity: 1.4
   }
-};                            
+};                                              

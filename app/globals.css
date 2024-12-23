@@ -3,8 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Default theme with WCAG AA compliant contrast ratios */
+  --text-primary: rgba(255, 255, 255, 0.87);
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --bg-primary: rgba(0, 0, 0, 0.87);
+  --bg-secondary: rgba(0, 0, 0, 0.7);
+  --control-bg: rgba(0, 0, 0, 0.8);
+  --control-border: rgba(255, 255, 255, 0.3);
+}
+
+/* High contrast theme with 7:1 contrast ratio for WCAG AAA */
+[data-high-contrast="true"] {
+  --text-primary: #ffffff;
+  --text-secondary: #f0f0f0;
+  --bg-primary: #000000;
+  --bg-secondary: #121212;
+  --control-bg: #000000;
+  --control-border: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -14,12 +29,125 @@
   }
 }
 
+:root {
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-duration: 200ms;
+}
+
+* {
+  transition: background-color var(--transition-duration) var(--transition-timing),
+              border-color var(--transition-duration) var(--transition-timing),
+              color var(--transition-duration) var(--transition-timing),
+              transform var(--transition-duration) var(--transition-timing),
+              opacity var(--transition-duration) var(--transition-timing);
+}
+
+/* Custom form control styles */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--control-border);
+  border-radius: 2px;
+  outline: none;
+  padding: 0;
+  margin: 10px 0;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--text-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--transition-duration) var(--transition-timing);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--control-border);
+}
+
+/* Custom select styling */
+select {
+  cursor: pointer;
+  transition: all var(--transition-duration) var(--transition-timing);
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 20px;
+  padding-right: 32px;
+}
+
+select:hover {
+  border-color: var(--text-primary);
+}
+
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--control-border);
+}
+
+/* Custom checkbox styling */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--control-border);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  transition: all var(--transition-duration) var(--transition-timing);
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+input[type="checkbox"]:checked::before {
+  content: "✓";
+  position: absolute;
+  color: var(--control-bg);
+  font-size: 12px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+input[type="checkbox"]:hover {
+  transform: scale(1.1);
+}
+
+input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 2px var(--control-border);
+}
+
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
   margin: 0;
   padding: 0;
-  background: black;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100vw;
   overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
