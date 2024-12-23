@@ -1,30 +1,8 @@
-import { ThreeElements } from '@react-three/fiber';
-import { Object3DNode } from '@react-three/fiber/dist/declarations/src/core/renderer';
+import { Object3DNode } from '@react-three/fiber';
+import { EffectComposerProps } from '@react-three/postprocessing';
+import { BloomProps } from '@react-three/postprocessing/dist/declarations/src/effects/Bloom';
+import * as THREE from 'three';
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      // HTML elements
-      canvas: React.DetailedHTMLProps<React.CanvasHTMLAttributes<HTMLCanvasElement>, HTMLCanvasElement>;
-      div: React.DetailedHTMLProps<React.HTMLAttributes<HTMLDivElement>, HTMLDivElement>;
-      
-      // Three.js elements
-      group: Object3DNode<THREE.Group, typeof THREE.Group>;
-      mesh: Object3DNode<THREE.Mesh, typeof THREE.Mesh>;
-      sphereGeometry: Object3DNode<THREE.SphereGeometry, typeof THREE.SphereGeometry>;
-      meshStandardMaterial: Object3DNode<THREE.MeshStandardMaterial, typeof THREE.MeshStandardMaterial>;
-      ambientLight: Object3DNode<THREE.AmbientLight, typeof THREE.AmbientLight>;
-      pointLight: Object3DNode<THREE.PointLight, typeof THREE.PointLight>;
-      
-      // Additional Three.js elements from @react-three/fiber
-      primitive: { object: THREE.Object3D } & JSX.IntrinsicElements['mesh'];
-      effectComposer: any;
-      bloom: any;
-    }
-  }
-}
-
-// Extend the existing ThreeElements
 declare module '@react-three/fiber' {
   interface ThreeElements {
     group: Object3DNode<THREE.Group, typeof THREE.Group>;
@@ -33,6 +11,8 @@ declare module '@react-three/fiber' {
     meshStandardMaterial: Object3DNode<THREE.MeshStandardMaterial, typeof THREE.MeshStandardMaterial>;
     ambientLight: Object3DNode<THREE.AmbientLight, typeof THREE.AmbientLight>;
     pointLight: Object3DNode<THREE.PointLight, typeof THREE.PointLight>;
+    effectComposer: React.PropsWithChildren<EffectComposerProps>;
+    bloom: React.PropsWithChildren<BloomProps>;
   }
 }
 
