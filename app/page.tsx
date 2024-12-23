@@ -6,6 +6,13 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass.js';
+import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass.js';
+import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls.js';
+import { ChromaticAberrationShader } from './shaders/ChromaticAberration';
+import { VolumetricLightShader } from './shaders/VolumetricLight';
 
 // Custom fluid distortion shader
 const FluidDistortionShader = {
@@ -39,7 +46,9 @@ const FluidDistortionShader = {
 };
 import { Controls } from './components/Controls';
 import { FPSStats } from './components/FPSStats';
-import { PRESETS, type VisualPreset } from './types';
+import { PRESETS, type VisualPreset, type FrequencyBands } from './types';
+import { FractalRayMarchShader } from './shaders/FractalRayMarch';
+import { createHyperbolicTiling, mergeGeometries } from './components/HyperbolicTiling';
 
 // Sacred geometry generators
 const createFlowerOfLife = (radius: number, layers: number = 6) => {
@@ -197,12 +206,40 @@ interface ParticleSystem {
   initialPositions: Float32Array;
   velocities: Float32Array;
   sacredGeometry?: THREE.LineSegments | THREE.Line | THREE.Mesh;
+  orbitRadius?: Float32Array;
+  orbitSpeed?: Float32Array;
+  orbitPhase?: Float32Array;
+  trail?: {
+    geometry: THREE.BufferGeometry;
+    positions: Float32Array;
+    line: THREE.Line;
+    head: number;
+  };
 }
 
 export default function Page() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const particleSystemsRef = useRef<ParticleSystem[]>([]);
   const [selectedTrack, setSelectedTrack] = useState(audioFiles[0]);
+  // Frequency bands state for audio visualization
+  const frequencyBandsRef = useRef<FrequencyBands | null>(null);
   const [currentPreset] = useState<keyof typeof PRESETS>("default");
+  const [cameraMode, setCameraMode] = useState<'orbit' | 'firstPerson'>('orbit');
+  
+  // Camera control refs
+  const orbitControlsRef = useRef<OrbitControls | null>(null);
+  const firstPersonControlsRef = useRef<FirstPersonControls | null>(null);
+  // Active camera target position
+  const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  
+  // Update camera target based on audio
+  useEffect(() => {
+    if (!cameraTargetRef.current) return;
+    const target = cameraTargetRef.current;
+    if (bassData.current > 0.7) {
+      target.z = Math.sin(timeRef.current * 0.001) * 5;
+    }
+  }, []);
   const [fluidDistortionIntensity, setFluidDistortionIntensity] = useState(0.5);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -219,12 +256,12 @@ export default function Page() {
     setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
+  // Audio analyzer state with proper typing
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const composerRef = useRef<EffectComposer | undefined>(undefined);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
   const cameraRef = useRef<THREE.PerspectiveCamera | undefined>(undefined);
   const rendererRef = useRef<THREE.WebGLRenderer | undefined>(undefined);
-  const particleSystemsRef = useRef<ParticleSystem[]>([]);
   const timeRef = useRef<number>(0);
   const freqData = useRef<Uint8Array | undefined>(undefined);
   const bassData = useRef<number>(0);
@@ -281,6 +318,60 @@ export default function Page() {
           const spiralGeometry = createSpiralGeometry(5, 100, 10);
           sacredGeometry = new THREE.Line(spiralGeometry, lineMaterial);
           break;
+        case 'hyperbolic':
+          const hyperbolicGeometry = createHyperbolicTiling(6, preset.geometryScale || 10);
+          sacredGeometry = new THREE.LineSegments(hyperbolicGeometry, lineMaterial);
+          break;
+        case 'mergedSacred':
+          if (preset.mergedGeometryConfig) {
+            const { primary, secondary, layerOffset = 0.5 } = preset.mergedGeometryConfig;
+            let primaryGeometry: THREE.BufferGeometry;
+            let secondaryGeometry: THREE.BufferGeometry;
+
+            // Create primary geometry
+            switch (primary) {
+              case 'flower':
+                primaryGeometry = createFlowerOfLife(10, 6);
+                break;
+              case 'metatron':
+                primaryGeometry = createMetatronsCube(8);
+                break;
+              case 'spiral':
+                primaryGeometry = createSpiralGeometry(5, 100, 10);
+                break;
+              default:
+                primaryGeometry = createFlowerOfLife(10, 6);
+            }
+
+            // Create secondary geometry
+            switch (secondary) {
+              case 'flower':
+                secondaryGeometry = createFlowerOfLife(10, 6);
+                break;
+              case 'metatron':
+                secondaryGeometry = createMetatronsCube(8);
+                break;
+              case 'spiral':
+                secondaryGeometry = createSpiralGeometry(5, 100, 10);
+                break;
+              default:
+                secondaryGeometry = createMetatronsCube(8);
+            }
+
+            // Merge geometries with offset
+            const mergedGeometry = mergeGeometries(
+              [primaryGeometry, secondaryGeometry],
+              [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, layerOffset)]
+            );
+            sacredGeometry = new THREE.LineSegments(mergedGeometry, lineMaterial);
+          } else {
+            const webGeometry = createNeuralWeb(100, 12, 4);
+            sacredGeometry = new THREE.LineSegments(webGeometry, lineMaterial);
+          }
+          break;
+        case 'fractal':
+          // Fractal geometry is handled by the shader pass
+          break;
         default:
           // Create neural web as default sacred geometry
           const webGeometry = createNeuralWeb(100, 12, 4);
@@ -297,6 +388,23 @@ export default function Page() {
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(particlesPerSystem * 3);
       const velocities = new Float32Array(particlesPerSystem * 3);
+      const orbitRadius = new Float32Array(particlesPerSystem);
+      const orbitSpeed = new Float32Array(particlesPerSystem);
+      const orbitPhase = new Float32Array(particlesPerSystem);
+
+      // Trail setup
+      const TRAIL_LENGTH = 20;
+      const trailPositions = new Float32Array(particlesPerSystem * TRAIL_LENGTH * 3);
+      const trailGeometry = new THREE.BufferGeometry();
+      trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trailPositions, 3));
+      const trailMaterial = new THREE.LineBasicMaterial({ 
+        color: color,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending
+      });
+      const trailLine = new THREE.Line(trailGeometry, trailMaterial);
+      scene.add(trailLine);
       
       for (let i = 0; i < particlesPerSystem; i++) {
         const i3 = i * 3;
@@ -311,6 +419,19 @@ export default function Page() {
         velocities[i3] = (Math.random() - 0.5) * 0.02;
         velocities[i3 + 1] = (Math.random() - 0.5) * 0.02;
         velocities[i3 + 2] = (Math.random() - 0.5) * 0.02;
+
+        // Initialize orbit parameters
+        orbitRadius[i] = 1 + Math.random() * 2;
+        orbitSpeed[i] = 0.5 + Math.random() * 1.5;
+        orbitPhase[i] = Math.random() * Math.PI * 2;
+
+        // Initialize trail positions
+        const trailStart = i * TRAIL_LENGTH * 3;
+        for (let t = 0; t < TRAIL_LENGTH; t++) {
+          trailPositions[trailStart + t * 3] = positions[i3];
+          trailPositions[trailStart + t * 3 + 1] = positions[i3 + 1];
+          trailPositions[trailStart + t * 3 + 2] = positions[i3 + 2];
+        }
       }
 
       geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -329,14 +450,23 @@ export default function Page() {
       systems.push({
         points,
         initialPositions: positions.slice(),
-        velocities
+        velocities,
+        orbitRadius,
+        orbitSpeed,
+        orbitPhase,
+        trail: {
+          geometry: trailGeometry,
+          positions: trailPositions,
+          line: trailLine,
+          head: 0
+        }
       });
     });
 
     return systems;
   }, []);
 
-  const updateVisualPreset = useCallback((preset: string) => {
+  const updateVisualPreset = useCallback((preset: keyof typeof PRESETS) => {
     if (!sceneRef.current || !composerRef.current) return;
     
     particleSystemsRef.current.forEach(system => {
@@ -364,6 +494,20 @@ export default function Page() {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 20;
 
+    // Initialize camera controls
+    const orbitControls = new OrbitControls(camera, mountRef.current);
+    orbitControls.enableDamping = true;
+    orbitControls.dampingFactor = 0.05;
+    orbitControls.rotateSpeed = 0.5;
+    orbitControls.zoomSpeed = 0.5;
+    orbitControlsRef.current = orbitControls;
+
+    const firstPersonControls = new FirstPersonControls(camera, mountRef.current);
+    firstPersonControls.lookSpeed = 0.1;
+    firstPersonControls.movementSpeed = 5;
+    firstPersonControls.enabled = false;
+    firstPersonControlsRef.current = firstPersonControls;
+
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -384,6 +528,53 @@ export default function Page() {
     // Add fluid distortion pass
     const fluidPass = new ShaderPass(FluidDistortionShader);
     composer.addPass(fluidPass);
+
+    // Add fractal ray march pass
+    const fractalPass = new ShaderPass(FractalRayMarchShader);
+    fractalPass.uniforms.u_resolution.value = [window.innerWidth, window.innerHeight];
+    composer.addPass(fractalPass);
+
+    // Add chromatic aberration pass
+    const chromaticAberrationPass = new ShaderPass(ChromaticAberrationShader);
+    chromaticAberrationPass.uniforms.distortion.value = 0.5;
+    composer.addPass(chromaticAberrationPass);
+
+    // Add glitch pass with reduced frequency
+    const glitchPass = new GlitchPass();
+    glitchPass.goWild = false; // More controlled glitching
+    composer.addPass(glitchPass);
+
+    // Add film grain and scanlines
+    const filmPass = new FilmPass(
+      0.35, // noise intensity
+      false // grayscale
+    );
+    composer.addPass(filmPass);
+
+    // Add halftone effect
+    const params = {
+      shape: 1,
+      radius: 4,
+      rotateR: Math.PI / 12,
+      rotateB: Math.PI / 12 * 2,
+      rotateG: Math.PI / 12 * 3,
+      scatter: 0,
+      blending: 1,
+      blendingMode: 1,
+      greyscale: false,
+      disable: false
+    };
+    const halftonePass = new HalftonePass(window.innerWidth, window.innerHeight, params);
+    composer.addPass(halftonePass);
+
+    // Add volumetric light pass
+    const volumetricLightPass = new ShaderPass(VolumetricLightShader);
+    volumetricLightPass.uniforms.exposure.value = 0.3;
+    volumetricLightPass.uniforms.decay.value = 0.95;
+    volumetricLightPass.uniforms.density.value = 0.5;
+    volumetricLightPass.uniforms.weight.value = 0.4;
+    volumetricLightPass.uniforms.lightPosition.value.set(0.5, 0.5);
+    composer.addPass(volumetricLightPass);
 
     const systems = createParticleSystems(scene, PRESETS[currentPreset]);
 
@@ -416,7 +607,7 @@ export default function Page() {
           break;
         case 'g':
           // Cycle through geometry types
-          const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
+          const geometryTypes = ['flower', 'metatron', 'spiral', 'default', 'hyperbolic', 'mergedSacred', 'fractal'] as const;
           const currentType = PRESETS[currentPreset].geometryType || 'default';
           const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
           updateVisualPreset(geometryTypes[nextTypeIndex]);
@@ -435,6 +626,26 @@ export default function Page() {
             }
           }
           break;
+        case 'v':
+          // Toggle between orbit and first person controls
+          const newMode = cameraMode === 'orbit' ? 'firstPerson' : 'orbit';
+          setCameraMode(newMode);
+          
+          if (orbitControlsRef.current && firstPersonControlsRef.current) {
+            orbitControlsRef.current.enabled = newMode === 'orbit';
+            firstPersonControlsRef.current.enabled = newMode === 'firstPerson';
+            
+            if (newMode === 'orbit') {
+              // Smoothly transition back to orbit position
+              const targetPosition = new THREE.Vector3(0, 0, 20);
+              cameraRef.current?.position.lerp(targetPosition, 0.1);
+              cameraRef.current?.lookAt(0, 0, 0);
+            } else {
+              // Set up first person view
+              firstPersonControlsRef.current.lookAt(0, 0, 0);
+            }
+          }
+          break;
         case 'Escape':
           if (document.fullscreenElement) {
             document.exitFullscreen();
@@ -446,7 +657,7 @@ export default function Page() {
     const handleMouseDown = (event: MouseEvent) => {
       if (event.button === 1) { // Middle click
         // Cycle through geometry types
-        const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
+        const geometryTypes = ['flower', 'metatron', 'spiral', 'default', 'hyperbolic', 'mergedSacred', 'fractal'] as const;
         const currentType = PRESETS[currentPreset].geometryType || 'default';
         const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
         updateVisualPreset(geometryTypes[nextTypeIndex]);
@@ -462,24 +673,44 @@ export default function Page() {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyPress);
       window.removeEventListener('mousedown', handleMouseDown);
+      
+      // Clean up controls
+      orbitControlsRef.current?.dispose();
+      firstPersonControlsRef.current?.dispose();
+      
       renderer.dispose();
       scene.clear();
     };
-  }, [createParticleSystems, currentPreset, updateVisualPreset, selectedTrack, togglePlay]);
+  }, [createParticleSystems, currentPreset, updateVisualPreset, selectedTrack, togglePlay, cameraMode]);
 
-  useEffect(() => {
-    const animate = () => {
-      if (!analyser || !freqData.current || !particleSystemsRef.current.length) return;
+  // Utility function for calculating frequency band averages
+  const average = (arr: Uint8Array): number => {
+    return arr.reduce((a, b) => a + b, 0) / arr.length;
+  };
+
+  const animate = useCallback((): void => {
+    if (!analyser || !freqData.current || !particleSystemsRef.current.length) return;
       
       analyser.getByteFrequencyData(freqData.current);
       
-      bassData.current = average(freqData.current.slice(0, 10)) / 255;
-      midData.current = average(freqData.current.slice(10, 100)) / 255;
-      trebleData.current = average(freqData.current.slice(100, 200)) / 255;
+      // Split frequency data into detailed bands for more nuanced control
+      frequencyBandsRef.current = {
+        subBass: average(freqData.current.slice(0, 5)) / 255,      // 20-60Hz
+        bass: average(freqData.current.slice(5, 10)) / 255,        // 60-250Hz
+        lowerMid: average(freqData.current.slice(10, 30)) / 255,   // 250-500Hz
+        mid: average(freqData.current.slice(30, 60)) / 255,        // 500-2kHz
+        upperMid: average(freqData.current.slice(60, 100)) / 255,  // 2-4kHz
+        presence: average(freqData.current.slice(100, 150)) / 255, // 4-6kHz
+        brilliance: average(freqData.current.slice(150, 200)) / 255 // 6-20kHz
+      };
+      
+      // Update frequency bands state for external components
+      // Frequency bands are now updated directly via ref
 
-      timeRef.current += 0.01;
+      const deltaTime = 1/60; // Fixed time step for consistent animation
+      timeRef.current += deltaTime;
 
-      particleSystemsRef.current.forEach((system, index) => {
+      particleSystemsRef.current.forEach((system: ParticleSystem, index: number) => {
         const positions = (system.points.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
         const preset = PRESETS[currentPreset];
         
@@ -488,9 +719,35 @@ export default function Page() {
                                   index === 1 ? midData.current : 
                                   trebleData.current;
 
-          positions[i] += system.velocities[i] * frequencyResponse * 2;
-          positions[i + 1] += system.velocities[i + 1] * frequencyResponse * 2;
+          // Calculate orbit contribution
+          const particleIndex = Math.floor(i / 3);
+          const orbitAngle = timeRef.current * system.orbitSpeed![particleIndex] + system.orbitPhase![particleIndex];
+          const orbitRadius = system.orbitRadius![particleIndex];
+          const orbitX = Math.cos(orbitAngle) * orbitRadius * frequencyResponse;
+          const orbitY = Math.sin(orbitAngle) * orbitRadius * frequencyResponse;
+
+          // Combine velocity and orbit motion
+          positions[i] += system.velocities[i] * frequencyResponse * 2 + orbitX;
+          positions[i + 1] += system.velocities[i + 1] * frequencyResponse * 2 + orbitY;
           positions[i + 2] += system.velocities[i + 2] * frequencyResponse * 2;
+
+          // Update trail if present
+          if (system.trail) {
+            const trailStart = particleIndex * 20 * 3; // TRAIL_LENGTH = 20
+            // Shift existing trail positions
+            for (let t = 19; t > 0; t--) {
+              const currentIndex = trailStart + t * 3;
+              const prevIndex = trailStart + (t - 1) * 3;
+              system.trail.positions[currentIndex] = system.trail.positions[prevIndex];
+              system.trail.positions[currentIndex + 1] = system.trail.positions[prevIndex + 1];
+              system.trail.positions[currentIndex + 2] = system.trail.positions[prevIndex + 2];
+            }
+            // Add current position to trail
+            system.trail.positions[trailStart] = positions[i];
+            system.trail.positions[trailStart + 1] = positions[i + 1];
+            system.trail.positions[trailStart + 2] = positions[i + 2];
+            system.trail.geometry.attributes.position.needsUpdate = true;
+          }
 
           const distance = Math.sqrt(
             positions[i] * positions[i] +
@@ -510,27 +767,79 @@ export default function Page() {
         system.points.rotation.x += preset.rotationSpeed * 0.5 * (index + 1);
       });
 
+      // Update camera controls
+      if (cameraRef.current) {
+        if (cameraMode === 'orbit' && orbitControlsRef.current) {
+          orbitControlsRef.current.update();
+        } else if (cameraMode === 'firstPerson' && firstPersonControlsRef.current) {
+          firstPersonControlsRef.current.update(deltaTime);
+          
+          // Add some gentle camera movement based on audio
+          if (bassData.current > 0.5) {
+            const intensity = bassData.current * 0.02;
+            cameraRef.current.position.y += Math.sin(timeRef.current) * intensity;
+          }
+        }
+      }
+
       if (composerRef.current) {
         const currentPresetConfig = PRESETS[currentPreset];
         const isReducedMotion = currentPresetConfig.reducedMotion;
         const isPerformanceMode = currentPresetConfig.performanceMode;
 
-        // Update fluid distortion shader uniforms
+        // Update fractal shader uniforms
+        const fractalPass = composerRef.current.passes.find(
+          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.u_frequencyData
+        ) as ShaderPass | undefined;
+
+        if (fractalPass) {
+          fractalPass.uniforms.u_time.value += 0.01;
+          fractalPass.uniforms.u_frequencyData.value = Array.from(freqData.current).map(v => v / 255.0);
+          
+          // Use detailed frequency bands for fractal parameters
+          fractalPass.uniforms.u_amplitude.value = 0.5 + ((frequencyBandsRef.current?.subBass ?? 0) * 0.7);
+          fractalPass.uniforms.u_scale.value = 1.0 + ((frequencyBandsRef.current?.bass ?? 0) * 0.5);
+          fractalPass.uniforms.u_morphFactor.value = (frequencyBandsRef.current?.lowerMid ?? 0) + (frequencyBandsRef.current?.mid ?? 0);
+          fractalPass.uniforms.u_colorShift.value = ((frequencyBandsRef.current?.presence ?? 0) + (frequencyBandsRef.current?.brilliance ?? 0)) * 0.5;
+          fractalPass.uniforms.u_complexity.value = 1.0 + ((frequencyBandsRef.current?.upperMid ?? 0) * 2.0);
+
+        // Update shader uniforms for all effect passes
         const fluidPass = composerRef.current.passes.find(
           pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.distortionAmount
         ) as ShaderPass;
         
+        const chromaticPass = composerRef.current.passes.find(
+          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.distortion
+        ) as ShaderPass;
+
+        const volumetricPass = composerRef.current.passes.find(
+          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.exposure
+        ) as ShaderPass;
+
         if (fluidPass) {
           fluidPass.uniforms.time.value = timeRef.current;
           // Reduce or disable effects based on accessibility settings
           const motionScale = isReducedMotion ? 0.3 : 1.0;
           const performanceScale = isPerformanceMode ? 0.5 : 1.0;
-          fluidPass.uniforms.distortionAmount.value = (bassData.current + midData.current) * 0.1 * motionScale * performanceScale;
-          fluidPass.uniforms.frequency.value = trebleData.current * 10 * motionScale * performanceScale;
+          fluidPass.uniforms.distortionAmount.value = ((frequencyBandsRef.current?.subBass ?? 0) + (frequencyBandsRef.current?.bass ?? 0)) * 0.15 * motionScale * performanceScale;
+          fluidPass.uniforms.frequency.value = ((frequencyBandsRef.current?.presence ?? 0) + (frequencyBandsRef.current?.brilliance ?? 0)) * 12 * motionScale * performanceScale;
+        }
+
+        if (chromaticPass) {
+          chromaticPass.uniforms.time.value = timeRef.current;
+          chromaticPass.uniforms.distortion.value = 0.3 + ((frequencyBandsRef.current?.subBass ?? 0) * 0.4 + (frequencyBandsRef.current?.bass ?? 0) * 0.3);
+        }
+
+        if (volumetricPass) {
+          const lightX = 0.5 + Math.cos(timeRef.current * 0.5) * 0.3;
+          const lightY = 0.5 + Math.sin(timeRef.current * 0.3) * 0.2;
+          volumetricPass.uniforms.lightPosition.value.set(lightX, lightY);
+          volumetricPass.uniforms.exposure.value = 0.3 + ((frequencyBandsRef.current?.lowerMid ?? 0) * 0.15 + (frequencyBandsRef.current?.mid ?? 0) * 0.15);
+          volumetricPass.uniforms.density.value = 0.4 + ((frequencyBandsRef.current?.upperMid ?? 0) * 0.2 + (frequencyBandsRef.current?.presence ?? 0) * 0.2);
         }
 
         // Update sacred geometry colors and transformations
-        particleSystemsRef.current.forEach((system, index) => {
+        particleSystemsRef.current.forEach((system: ParticleSystem, index: number) => {
           if (system.sacredGeometry) {
             const material = system.sacredGeometry.material as THREE.LineBasicMaterial;
             const hue = (timeRef.current * 0.1 + index * 0.2) % 1;
@@ -555,8 +864,12 @@ export default function Page() {
             // Neural web specific animations
             if (currentPresetConfig.geometryType === 'default' && frequencyResponse > 0.8) {
               // Trigger neural web expansion on high frequency with reduced motion
-              const scale = 1 + (frequencyResponse * 0.5 * motionScale * performanceScale);
+              // Use sub-bass for scale and bass for rotation
+              const scale = 1 + ((frequencyBandsRef.current?.subBass ?? 0) * 0.6 + (frequencyBandsRef.current?.bass ?? 0) * 0.4) * motionScale * performanceScale;
               system.sacredGeometry.scale.setScalar(scale);
+              
+              // Add subtle twisting based on mid frequencies
+              system.sacredGeometry.rotation.z += ((frequencyBandsRef.current?.lowerMid ?? 0) + (frequencyBandsRef.current?.mid ?? 0)) * 0.02 * motionScale;
               
               // Pulse the opacity based on frequency with reduced motion
               const opacityBase = currentPresetConfig.reducedMotion ? 0.5 : 0.3;
@@ -576,8 +889,29 @@ export default function Page() {
       requestAnimationFrame(animate);
     };
 
-    animate();
-  }, [analyser, currentPreset]);
+    requestAnimationFrame(animate);
+  }, [
+    analyser,
+    currentPreset,
+    particleSystemsRef,
+    freqData,
+    timeRef,
+    bassData,
+    midData,
+    trebleData,
+    cameraMode,
+    orbitControlsRef,
+    firstPersonControlsRef,
+    cameraRef,
+    composerRef
+  ]);
+
+  useEffect(() => {
+    const animationFrame = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(animationFrame);
+    };
+  }, [animate]);
 
   useEffect(() => {
     const audio = new Audio(selectedTrack);
@@ -620,8 +954,4 @@ export default function Page() {
       <FPSStats />
     </>
   );
-}
-
-function average(arr: Uint8Array): number {
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
