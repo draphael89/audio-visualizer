@@ -21,12 +21,23 @@
     "paths": {
       "@/*": ["./app/*"]
     },
+    "typeRoots": [
+      "./node_modules/@types",
+      "./app/types"
+    ],
     "plugins": [
       {
         "name": "next"
       }
     ],
-    "types": ["react", "react-dom", "three", "@react-three/fiber", "@react-three/drei"]
+    "types": [
+      "react",
+      "react-dom",
+      "three",
+      "@react-three/fiber",
+      "@react-three/drei",
+      "@react-three/postprocessing"
+    ]
   },
   "include": [
     "**/*.ts",
