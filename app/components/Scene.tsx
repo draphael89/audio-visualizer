@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useThree, useFrame, extend } from '@react-three/fiber';
+import { useFrame, extend } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { ReactNode } from 'react';
 
 type TouchEventHandler = (event: TouchEvent) => void;
 type DomElement = HTMLElement & { style: CSSStyleDeclaration };
@@ -19,17 +20,19 @@ extend({
 // Add touch feedback state
 const MIN_TOUCH_TARGET = 44; // minimum touch target size in pixels
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      group: { ref?: React.Ref<THREE.Group> };
-      mesh: { ref?: React.Ref<THREE.Mesh>; scale?: number | [x: number, y: number, z: number] };
-      sphereGeometry: { args?: [radius?: number, widthSegments?: number, heightSegments?: number] };
-      meshStandardMaterial: { color?: THREE.ColorRepresentation };
-      ambientLight: { intensity?: number };
-      pointLight: { position?: [x: number, y: number, z: number]; intensity?: number };
-    }
-  }
+interface ThreeElements {
+  group: { ref?: React.Ref<THREE.Group>; children?: ReactNode };
+  mesh: { ref?: React.Ref<THREE.Mesh>; scale?: number | [x: number, y: number, z: number]; children?: ReactNode };
+  sphereGeometry: { args?: [radius?: number, widthSegments?: number, heightSegments?: number] };
+  meshStandardMaterial: { color?: THREE.ColorRepresentation };
+  ambientLight: { intensity?: number };
+  pointLight: { position?: [x: number, y: number, z: number]; intensity?: number };
+}
+
+extend({ OrbitControls });
+
+declare module '@react-three/fiber' {
+  interface ThreeElements extends ThreeElements {}
 }
 
 export function Scene() {

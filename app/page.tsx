@@ -3,17 +3,17 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { EffectComposer as EffectComposerImpl } from '@react-three/postprocessing';
+import { EffectComposer as R3FEffectComposer } from '@react-three/postprocessing';
 import { Scene } from './components/Scene';
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls';
 import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { EffectComposer as ThreeEffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
 import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass';
 import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass';
 import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass';
 import { Pass } from 'three/examples/jsm/postprocessing/Pass';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { ChromaticAberrationShader } from './shaders/ChromaticAberration';
 import { VolumetricLightShader } from './shaders/VolumetricLight';
@@ -262,7 +262,7 @@ export default function Page() {
 
   // Audio analyzer state with proper typing
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const composerRef = useRef<EffectComposer | undefined>(undefined);
+  const composerRef = useRef<ThreeEffectComposer | undefined>(undefined);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
   const cameraRef = useRef<THREE.PerspectiveCamera | undefined>(undefined);
   const rendererRef = useRef<THREE.WebGLRenderer | undefined>(undefined);
@@ -531,7 +531,7 @@ export default function Page() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
 
-    const composer = new EffectComposer(renderer);
+    const composer = new ThreeEffectComposer(renderer);
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
