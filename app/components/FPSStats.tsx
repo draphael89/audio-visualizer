@@ -1,20 +1,39 @@
 "use client";
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 
-export function FPSStats() {
+export function FPSStats(): ReactElement {
   const fpsRef = useRef<HTMLDivElement>(null);
   const framesRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
 
   useEffect(() => {
+    let lowFPSCount = 0;
+    const FPS_THRESHOLD = 50;
+    const LOW_FPS_THRESHOLD_COUNT = 10;
+    
     const updateFPS = () => {
       const now = performance.now();
       framesRef.current++;
 
       if (now >= lastTimeRef.current + 1000) {
+        const currentFPS = framesRef.current;
         if (fpsRef.current) {
-          fpsRef.current.textContent = `FPS: ${framesRef.current}`;
+          fpsRef.current.textContent = `FPS: ${currentFPS}`;
         }
+        
+        // Track low FPS occurrences
+        if (currentFPS < FPS_THRESHOLD) {
+          lowFPSCount++;
+          if (lowFPSCount >= LOW_FPS_THRESHOLD_COUNT) {
+            window.dispatchEvent(new CustomEvent('performance-degradation', {
+              detail: { fps: currentFPS }
+            }));
+            lowFPSCount = 0;
+          }
+        } else {
+          lowFPSCount = Math.max(0, lowFPSCount - 1);
+        }
+        
         framesRef.current = 0;
         lastTimeRef.current = now;
       }
@@ -41,4 +60,4 @@ export function FPSStats() {
       FPS: --
     </div>
   );
-} 
+}          

@@ -1,39 +1,18 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { useFrame, useThree, extend, ThreeElements } from '@react-three/fiber';
+import React, { useRef, useEffect, useState, type ReactElement } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { OrbitControls } from '@react-three/drei';
-import type { OrbitControlsProps } from '@react-three/drei';
 import * as THREE from 'three';
-
-extend({ 
-  OrbitControls,
-  mesh: THREE.Mesh,
-  sphereGeometry: THREE.SphereGeometry,
-  meshStandardMaterial: THREE.MeshStandardMaterial,
-  ambientLight: THREE.AmbientLight,
-  pointLight: THREE.PointLight,
-  group: THREE.Group
-});
 
 type TouchEventHandler = (event: TouchEvent) => void;
 
 // Touch feedback constants
 const MIN_TOUCH_TARGET = 44; // minimum touch target size in pixels
 
-extend({ 
-  OrbitControls,
-  mesh: THREE.Mesh,
-  sphereGeometry: THREE.SphereGeometry,
-  meshStandardMaterial: THREE.MeshStandardMaterial,
-  ambientLight: THREE.AmbientLight,
-  pointLight: THREE.PointLight,
-  group: THREE.Group
-});
+// Using OrbitControls directly from drei import above
+type OrbitControlsRef = React.ComponentRef<typeof OrbitControls>;
 
-import { OrbitControls as OrbitControlsImpl } from '@react-three/drei';
-type OrbitControlsRef = React.ComponentRef<typeof OrbitControlsImpl>;
-
-export const Scene: React.FC = () => {
+const SceneContent = (): ReactElement => {
   const { gl } = useThree();
   const [isTouching, setIsTouching] = useState(false);
   const orbitControlsRef = useRef<OrbitControlsRef>(null);
@@ -122,5 +101,13 @@ export const Scene: React.FC = () => {
         />
       </EffectComposer>
     </>
+  );
+}
+
+export const Scene = (): ReactElement => {
+  return (
+    <Canvas>
+      <SceneContent />
+    </Canvas>
   );
 }

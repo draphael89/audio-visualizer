@@ -73,6 +73,24 @@ export interface FractalShaderPass extends Omit<BaseShaderPass, 'uniforms'> {
   };
 }
 
+export interface PsychedelicShaderPass extends BaseShaderPass {
+  uniforms: ShaderUniforms & {
+    tDiffuse: THREE.IUniform<THREE.Texture | null>;
+    time: THREE.IUniform<number>;
+    amplitude: THREE.IUniform<number>;
+    colorCycle: THREE.IUniform<number>;
+    distortion: THREE.IUniform<number>;
+  };
+}
+
+export interface RandomizationSettings {
+  enableParticleRandomization: boolean;
+  enableColorRandomization: boolean;
+  enableGeometryRandomization: boolean;
+  randomSeed: number;
+  intensityFactor: number;
+}
+
 export interface VisualPreset {
   // Core settings
   particleCount: number;
@@ -80,6 +98,9 @@ export interface VisualPreset {
   particleSize: number;
   rotationSpeed: number;
   colorPalette: number[];
+  
+  // Randomization settings
+  randomization?: Partial<RandomizationSettings>;
   
   // Geometry settings
   geometryType?: 'flower' | 'metatron' | 'spiral' | 'default' | 'fractal' | 'mergedSacred' | 'hyperbolic';
@@ -109,6 +130,7 @@ export interface VisualPreset {
   // Post-processing effects
   chromaticAberration?: number;
   volumetricIntensity?: number;
+  psychedelicIntensity?: number;
   
   // Performance and accessibility
   reducedMotion?: boolean;
@@ -175,7 +197,8 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryType: 'spiral',
     geometryScale: 1.618,
     geometryRotation: 0.002,
-    pulseIntensity: 1.2
+    pulseIntensity: 1.2,
+    psychedelicIntensity: 0.8
   },
   fractalDragon: {
     particleCount: 55000,
@@ -222,4 +245,4 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryRotation: 0.002,
     pulseIntensity: 1.4
   }
-};                                              
+};                                                       
