@@ -2,6 +2,24 @@
 import { useState } from 'react';
 import { VisualPreset, PRESETS } from '../types';
 
+// Backdrop overlay component
+interface BackdropProps {
+  isExpanded: boolean;
+  onClick: () => void;
+}
+
+const Backdrop: React.FC<BackdropProps> = ({ isExpanded, onClick }) => {
+  return (
+    <div
+      className={`fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity z-40 ${
+        isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+      onClick={onClick}
+      aria-hidden="true"
+    />
+  );
+};
+
 interface ControlsProps {
   currentPreset: string;
   onPresetChange: (preset: string, customPreset?: Partial<VisualPreset>) => void;
@@ -29,15 +47,26 @@ export function Controls({
   const [customSettings, setCustomSettings] = useState<Partial<VisualPreset>>(PRESETS[currentPreset]);
 
   return (
-    <div
-      className="fixed right-0 top-0 h-full w-80 bg-black/80 text-white p-4 overflow-y-auto"
+    <>
+      <Backdrop isExpanded={isExpanded} onClick={() => setIsExpanded(false)} />
+      <div
+      className={`fixed right-0 top-0 h-full max-w-[320px] w-[85vw] bg-black/80 text-white p-4 overflow-y-auto transform transition-transform duration-300 ease-in-out ${
+        isExpanded ? 'translate-x-0' : 'translate-x-full'
+      }`}
     >
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="fixed right-4 top-4 z-50 p-3 min-h-[44px] min-w-[44px] bg-black/80 rounded-full shadow-lg hover:bg-black/90 transition-colors"
+          aria-label={isExpanded ? 'Close controls' : 'Open controls'}
+        >
+          {isExpanded ? '×' : '⚙️'}
+        </button>
         {audioFiles && onTrackChange && (
           <select
             value={selectedTrack}
             onChange={(e) => onTrackChange(e.target.value)}
-            className="flex-1 p-2 bg-black/50 text-white border border-white/20 rounded text-sm"
+            className="flex-1 p-3 bg-black/50 text-white border border-white/20 rounded text-sm min-h-[44px]"
           >
             {audioFiles.map((src) => (
               <option key={src} value={src}>
@@ -520,6 +549,7 @@ export function Controls({
         </div>
       )}
     </div>
+    </>
   );
 }
-     
+                 
