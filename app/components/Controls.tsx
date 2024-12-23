@@ -44,20 +44,28 @@ export function Controls({
   audioFiles
 }: ControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [customSettings, setCustomSettings] = useState<Partial<VisualPreset>>(PRESETS[currentPreset]);
+  const [customSettings, setCustomSettings] = useState<VisualPreset>(PRESETS[currentPreset]);
 
   return (
     <>
       <Backdrop isExpanded={isExpanded} onClick={() => setIsExpanded(false)} />
       <div
-      className={`fixed right-0 top-0 h-full max-w-[320px] w-[85vw] bg-black/80 text-white p-4 overflow-y-auto transform transition-transform duration-300 ease-in-out ${
+      className={`fixed right-0 top-0 h-full max-w-[320px] w-[85vw] p-4 overflow-y-auto transform transition-all duration-300 ease-in-out shadow-lg backdrop-blur-sm ${
+        customSettings.highContrast 
+          ? 'bg-[var(--control-bg)] border-l border-[var(--control-border)]' 
+          : 'bg-black/80 border-l border-white/10'
+      } text-[var(--text-primary)] ${
         isExpanded ? 'translate-x-0' : 'translate-x-full'
       }`}
     >
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="fixed right-4 top-4 z-50 p-3 min-h-[44px] min-w-[44px] bg-black/80 rounded-full shadow-lg hover:bg-black/90 transition-colors"
+          className={`fixed right-4 top-4 z-50 p-3 min-h-[44px] min-w-[44px] rounded-full shadow-lg transition-all duration-200 ease-in-out hover:scale-105 ${
+            customSettings.highContrast 
+              ? 'bg-[var(--control-bg)] border border-[var(--control-border)]' 
+              : 'bg-black/80 hover:bg-black/90 border border-white/10'
+          }`}
           aria-label={isExpanded ? 'Close controls' : 'Open controls'}
         >
           {isExpanded ? '×' : '⚙️'}
@@ -66,7 +74,11 @@ export function Controls({
           <select
             value={selectedTrack}
             onChange={(e) => onTrackChange(e.target.value)}
-            className="flex-1 p-3 bg-black/50 text-white border border-white/20 rounded text-sm min-h-[44px]"
+            className={`flex-1 p-3 rounded text-sm min-h-[44px] border ${
+              customSettings.highContrast 
+                ? 'bg-[var(--control-bg)] text-[var(--text-primary)] border-[var(--control-border)]' 
+                : 'bg-black/50 text-white border-white/20'
+            }`}
           >
             {audioFiles.map((src) => (
               <option key={src} value={src}>
@@ -410,7 +422,7 @@ export function Controls({
                     setCustomSettings(newSettings);
                     onPresetChange(currentPreset, newSettings);
                   }}
-                  className="w-full"
+                  className="w-full appearance-none cursor-pointer"
                 />
               </div>
 
@@ -427,7 +439,7 @@ export function Controls({
                     setCustomSettings(newSettings);
                     onPresetChange(currentPreset, newSettings);
                   }}
-                  className="w-full"
+                  className="w-full appearance-none cursor-pointer"
                   title="Adjust camera movement speed"
                 />
               </div>
@@ -462,7 +474,7 @@ export function Controls({
                     setCustomSettings(newSettings);
                     onPresetChange(currentPreset, newSettings);
                   }}
-                  className="w-full"
+                  className="w-full appearance-none cursor-pointer"
                 />
               </div>
             </div>
@@ -471,8 +483,8 @@ export function Controls({
           {/* Accessibility Settings */}
           <div>
             <label className="block mb-2">Accessibility</label>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
                   id="reduced-motion"
@@ -482,12 +494,31 @@ export function Controls({
                     setCustomSettings(newSettings);
                     onPresetChange(currentPreset, newSettings);
                   }}
-                  className="w-4 h-4"
+                  className="w-4 h-4 transition-transform hover:scale-110 focus:ring-2 focus:ring-white/50 focus:ring-offset-1"
                   aria-label="Enable reduced motion for animations"
                   title="Reduces animation intensity for better accessibility"
                 />
                 <label htmlFor="reduced-motion" className="cursor-pointer" title="Reduces animation intensity for better accessibility">
                   Reduced Motion
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="high-contrast"
+                  checked={customSettings.highContrast}
+                  onChange={(e) => {
+                    const newSettings = { ...customSettings, highContrast: e.target.checked };
+                    setCustomSettings(newSettings);
+                    onPresetChange(currentPreset, newSettings);
+                    document.documentElement.setAttribute('data-high-contrast', e.target.checked.toString());
+                  }}
+                  className="w-4 h-4 transition-transform hover:scale-110 focus:ring-2 focus:ring-white/50 focus:ring-offset-1"
+                  aria-label="Enable high contrast mode"
+                  title="Increases contrast for better visibility"
+                />
+                <label htmlFor="high-contrast" className="cursor-pointer" title="Increases contrast for better visibility">
+                  High Contrast
                 </label>
               </div>
               <div className="flex items-center gap-2">
@@ -552,4 +583,4 @@ export function Controls({
     </>
   );
 }
-                 
+                                   

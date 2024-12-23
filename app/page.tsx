@@ -1,16 +1,20 @@
 "use client";
 import { useRef, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass.js';
-import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass.js';
-import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls.js';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import { EffectComposer as EffectComposerImpl } from '@react-three/postprocessing';
+import { Scene } from './components/Scene';
+import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls';
+import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
+import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass';
+import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass';
+import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass';
+import { Pass } from 'three/examples/jsm/postprocessing/Pass';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { ChromaticAberrationShader } from './shaders/ChromaticAberration';
 import { VolumetricLightShader } from './shaders/VolumetricLight';
 
@@ -227,7 +231,7 @@ export default function Page() {
   const [cameraMode, setCameraMode] = useState<'orbit' | 'firstPerson'>('orbit');
   
   // Camera control refs
-  const orbitControlsRef = useRef<OrbitControls | null>(null);
+  const orbitControlsRef = useRef<OrbitControlsImpl | null>(null);
   const firstPersonControlsRef = useRef<FirstPersonControls | null>(null);
   // Active camera target position
   const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -478,12 +482,26 @@ export default function Page() {
     const presetConfig = PRESETS[preset];
     particleSystemsRef.current = createParticleSystems(sceneRef.current, presetConfig);
 
-    const bloomPass = composerRef.current.passes.find(
-      (pass: Pass) => pass instanceof UnrealBloomPass
-    ) as UnrealBloomPass;
-    
-    if (bloomPass) {
-      bloomPass.strength = presetConfig.bloomStrength;
+    if (composerRef.current) {
+      // Update bloom pass
+      const bloomPass = composerRef.current.passes.find(
+        (pass: Pass) => pass instanceof UnrealBloomPass
+      ) as UnrealBloomPass;
+      
+      if (bloomPass) {
+        bloomPass.strength = presetConfig.performanceMode ? 
+          Math.min(presetConfig.bloomStrength, 1.5) : 
+          presetConfig.bloomStrength;
+      }
+
+      // Update fractal pass
+      const fractalPass = composerRef.current.passes.find(
+        (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'maxIterations' in pass.uniforms
+      ) as ShaderPass | undefined;
+
+      if (fractalPass && presetConfig.performanceMode) {
+        fractalPass.uniforms.maxIterations.value = Math.min(fractalPass.uniforms.maxIterations.value, 8);
+      }
     }
   }, [createParticleSystems]);
 
@@ -495,7 +513,7 @@ export default function Page() {
     camera.position.z = 20;
 
     // Initialize camera controls
-    const orbitControls = new OrbitControls(camera, mountRef.current);
+    const orbitControls = new OrbitControlsImpl(camera, mountRef.current);
     orbitControls.enableDamping = true;
     orbitControls.dampingFactor = 0.05;
     orbitControls.rotateSpeed = 0.5;
@@ -517,64 +535,76 @@ export default function Page() {
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
 
+    const currentPresetConfig = PRESETS[currentPreset];
+    const isPerformanceMode = currentPresetConfig.performanceMode;
+
+    // Essential passes - always enabled
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      PRESETS[currentPreset].bloomStrength,
+      isPerformanceMode ? Math.min(PRESETS[currentPreset].bloomStrength, 1.5) : PRESETS[currentPreset].bloomStrength,
       0.4,
       0.85
     );
     composer.addPass(bloomPass);
 
-    // Add fluid distortion pass
+    // Basic effects - enabled in both modes but with reduced quality in performance mode
     const fluidPass = new ShaderPass(FluidDistortionShader);
+    if (isPerformanceMode) {
+      fluidPass.uniforms.distortionAmount.value *= 0.5;
+      fluidPass.uniforms.frequency.value *= 0.5;
+    }
     composer.addPass(fluidPass);
 
-    // Add fractal ray march pass
+    // Fractal visualization - reduced complexity in performance mode
     const fractalPass = new ShaderPass(FractalRayMarchShader);
     fractalPass.uniforms.u_resolution.value = [window.innerWidth, window.innerHeight];
+    if (isPerformanceMode) {
+      fractalPass.uniforms.maxIterations.value = Math.min(fractalPass.uniforms.maxIterations.value, 8);
+    }
     composer.addPass(fractalPass);
 
-    // Add chromatic aberration pass
-    const chromaticAberrationPass = new ShaderPass(ChromaticAberrationShader);
-    chromaticAberrationPass.uniforms.distortion.value = 0.5;
-    composer.addPass(chromaticAberrationPass);
+    // Advanced effects - only enabled in high quality mode
+    if (!isPerformanceMode) {
+      // Add chromatic aberration pass
+      const chromaticAberrationPass = new ShaderPass(ChromaticAberrationShader);
+      chromaticAberrationPass.uniforms.distortion.value = 0.5;
+      composer.addPass(chromaticAberrationPass);
 
-    // Add glitch pass with reduced frequency
-    const glitchPass = new GlitchPass();
-    glitchPass.goWild = false; // More controlled glitching
-    composer.addPass(glitchPass);
+      // Add glitch pass with reduced frequency
+      const glitchPass = new GlitchPass();
+      glitchPass.goWild = false;
+      composer.addPass(glitchPass);
 
-    // Add film grain and scanlines
-    const filmPass = new FilmPass(
-      0.35, // noise intensity
-      false // grayscale
-    );
-    composer.addPass(filmPass);
+      // Add film grain and scanlines
+      const filmPass = new FilmPass(0.35, false);
+      composer.addPass(filmPass);
 
-    // Add halftone effect
-    const params = {
-      shape: 1,
-      radius: 4,
-      rotateR: Math.PI / 12,
-      rotateB: Math.PI / 12 * 2,
-      rotateG: Math.PI / 12 * 3,
-      scatter: 0,
-      blending: 1,
-      blendingMode: 1,
-      greyscale: false,
-      disable: false
-    };
-    const halftonePass = new HalftonePass(window.innerWidth, window.innerHeight, params);
-    composer.addPass(halftonePass);
 
-    // Add volumetric light pass
-    const volumetricLightPass = new ShaderPass(VolumetricLightShader);
-    volumetricLightPass.uniforms.exposure.value = 0.3;
-    volumetricLightPass.uniforms.decay.value = 0.95;
-    volumetricLightPass.uniforms.density.value = 0.5;
-    volumetricLightPass.uniforms.weight.value = 0.4;
-    volumetricLightPass.uniforms.lightPosition.value.set(0.5, 0.5);
-    composer.addPass(volumetricLightPass);
+      // Add halftone effect
+      const params = {
+        shape: 1,
+        radius: 4,
+        rotateR: Math.PI / 12,
+        rotateB: Math.PI / 12 * 2,
+        rotateG: Math.PI / 12 * 3,
+        scatter: 0,
+        blending: 1,
+        blendingMode: 1,
+        greyscale: false,
+        disable: false
+      };
+      const halftonePass = new HalftonePass(window.innerWidth, window.innerHeight, params);
+      composer.addPass(halftonePass);
+
+      // Add volumetric light pass
+      const volumetricLightPass = new ShaderPass(VolumetricLightShader);
+      volumetricLightPass.uniforms.exposure.value = 0.3;
+      volumetricLightPass.uniforms.decay.value = 0.95;
+      volumetricLightPass.uniforms.density.value = 0.5;
+      volumetricLightPass.uniforms.weight.value = 0.4;
+      volumetricLightPass.uniforms.lightPosition.value.set(0.5, 0.5);
+      composer.addPass(volumetricLightPass);
+    }
 
     const systems = createParticleSystems(scene, PRESETS[currentPreset]);
 
@@ -618,7 +648,7 @@ export default function Page() {
           } else {
             // Adjust fluid distortion intensity
             const fluidPass = composerRef.current?.passes.find(
-              pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.distortionAmount
+              (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'distortionAmount' in pass.uniforms
             ) as ShaderPass | undefined;
             if (fluidPass) {
               const currentAmount = fluidPass.uniforms.distortionAmount.value;
@@ -789,7 +819,7 @@ export default function Page() {
 
         // Update fractal shader uniforms
         const fractalPass = composerRef.current.passes.find(
-          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.u_frequencyData
+          (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'u_frequencyData' in pass.uniforms
         ) as ShaderPass | undefined;
 
         if (fractalPass) {
@@ -804,16 +834,16 @@ export default function Page() {
           fractalPass.uniforms.u_complexity.value = 1.0 + ((frequencyBandsRef.current?.upperMid ?? 0) * 2.0);
 
         // Update shader uniforms for all effect passes
-        const fluidPass = composerRef.current.passes.find(
-          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.distortionAmount
+        const fluidPass = (composerRef.current as unknown as { passes: Pass[] })?.passes.find(
+          (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'distortionAmount' in pass.uniforms
         ) as ShaderPass;
         
         const chromaticPass = composerRef.current.passes.find(
-          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.distortion
+          (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'distortion' in pass.uniforms
         ) as ShaderPass;
 
         const volumetricPass = composerRef.current.passes.find(
-          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.exposure
+          (pass: Pass): pass is ShaderPass => pass instanceof ShaderPass && 'uniforms' in pass && 'exposure' in pass.uniforms
         ) as ShaderPass;
 
         if (fluidPass) {
@@ -937,9 +967,41 @@ export default function Page() {
           position: "absolute",
           top: 0,
           left: 0,
-          background: 'black'
+          background: 'black',
+          touchAction: 'none' // Prevent default touch behaviors
         }}
-      />
+      >
+        <Canvas
+          camera={{
+            fov: 75,
+            near: 0.1,
+            far: 1000,
+            position: [0, 0, 10]
+          }}
+          dpr={[1, 2]} // Optimize for mobile by limiting pixel ratio
+          performance={{ min: 0.5 }} // Allow frame rate to drop for better performance
+          style={{ touchAction: 'none' }}
+        >
+          <Scene />
+          <OrbitControls
+            enablePan={true}
+            enableZoom={true}
+            enableRotate={true}
+            touches={{
+              ONE: THREE.TOUCH.ROTATE,
+              TWO: THREE.TOUCH.DOLLY_PAN
+            }}
+            minDistance={2}
+            maxDistance={20}
+            dampingFactor={0.05}
+            enableDamping={true}
+            rotateSpeed={0.5}
+            zoomSpeed={0.5}
+            minPolarAngle={Math.PI / 4}
+            maxPolarAngle={Math.PI * 3 / 4}
+          />
+        </Canvas>
+      </div>
       <Controls
         currentPreset={currentPreset}
         onPresetChange={updateVisualPreset}

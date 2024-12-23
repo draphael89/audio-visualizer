@@ -48,6 +48,7 @@ export interface VisualPreset {
   // Performance and accessibility
   reducedMotion?: boolean;
   performanceMode?: boolean;
+  highContrast?: boolean;
 }
 
 export const PRESETS: Record<string, VisualPreset> = {
@@ -156,4 +157,4 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryRotation: 0.002,
     pulseIntensity: 1.4
   }
-};                            
+};                               
