@@ -9,6 +9,8 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass.js';
 import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass.js';
 import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls.js';
 import { ChromaticAberrationShader } from './shaders/ChromaticAberration';
 import { VolumetricLightShader } from './shaders/VolumetricLight';
 
@@ -219,6 +221,12 @@ export default function Page() {
   const mountRef = useRef<HTMLDivElement>(null);
   const [selectedTrack, setSelectedTrack] = useState(audioFiles[0]);
   const [currentPreset] = useState<keyof typeof PRESETS>("default");
+  const [cameraMode, setCameraMode] = useState<'orbit' | 'firstPerson'>('orbit');
+  
+  // Camera control refs
+  const orbitControlsRef = useRef<OrbitControls | null>(null);
+  const firstPersonControlsRef = useRef<FirstPersonControls | null>(null);
+  const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [fluidDistortionIntensity, setFluidDistortionIntensity] = useState(0.5);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -473,6 +481,20 @@ export default function Page() {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 20;
 
+    // Initialize camera controls
+    const orbitControls = new OrbitControls(camera, mountRef.current);
+    orbitControls.enableDamping = true;
+    orbitControls.dampingFactor = 0.05;
+    orbitControls.rotateSpeed = 0.5;
+    orbitControls.zoomSpeed = 0.5;
+    orbitControlsRef.current = orbitControls;
+
+    const firstPersonControls = new FirstPersonControls(camera, mountRef.current);
+    firstPersonControls.lookSpeed = 0.1;
+    firstPersonControls.movementSpeed = 5;
+    firstPersonControls.enabled = false;
+    firstPersonControlsRef.current = firstPersonControls;
+
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -593,6 +615,26 @@ export default function Page() {
             }
           }
           break;
+        case 'v':
+          // Toggle between orbit and first person controls
+          const newMode = cameraMode === 'orbit' ? 'firstPerson' : 'orbit';
+          setCameraMode(newMode);
+          
+          if (orbitControlsRef.current && firstPersonControlsRef.current) {
+            orbitControlsRef.current.enabled = newMode === 'orbit';
+            firstPersonControlsRef.current.enabled = newMode === 'firstPerson';
+            
+            if (newMode === 'orbit') {
+              // Smoothly transition back to orbit position
+              const targetPosition = new THREE.Vector3(0, 0, 20);
+              cameraRef.current?.position.lerp(targetPosition, 0.1);
+              cameraRef.current?.lookAt(0, 0, 0);
+            } else {
+              // Set up first person view
+              firstPersonControlsRef.current.lookAt(0, 0, 0);
+            }
+          }
+          break;
         case 'Escape':
           if (document.fullscreenElement) {
             document.exitFullscreen();
@@ -620,6 +662,11 @@ export default function Page() {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyPress);
       window.removeEventListener('mousedown', handleMouseDown);
+      
+      // Clean up controls
+      orbitControlsRef.current?.dispose();
+      firstPersonControlsRef.current?.dispose();
+      
       renderer.dispose();
       scene.clear();
     };
@@ -631,11 +678,19 @@ export default function Page() {
       
       analyser.getByteFrequencyData(freqData.current);
       
-      bassData.current = average(freqData.current.slice(0, 10)) / 255;
-      midData.current = average(freqData.current.slice(10, 100)) / 255;
-      trebleData.current = average(freqData.current.slice(100, 200)) / 255;
+      // Split frequency data into detailed bands for more nuanced control
+      const frequencyBands = {
+        subBass: average(freqData.current.slice(0, 5)) / 255,      // 20-60Hz
+        bass: average(freqData.current.slice(5, 10)) / 255,        // 60-250Hz
+        lowerMid: average(freqData.current.slice(10, 30)) / 255,   // 250-500Hz
+        mid: average(freqData.current.slice(30, 60)) / 255,        // 500-2kHz
+        upperMid: average(freqData.current.slice(60, 100)) / 255,  // 2-4kHz
+        presence: average(freqData.current.slice(100, 150)) / 255, // 4-6kHz
+        brilliance: average(freqData.current.slice(150, 200)) / 255 // 6-20kHz
+      };
 
-      timeRef.current += 0.01;
+      const deltaTime = 1/60; // Fixed time step for consistent animation
+      timeRef.current += deltaTime;
 
       particleSystemsRef.current.forEach((system, index) => {
         const positions = (system.points.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
@@ -694,6 +749,21 @@ export default function Page() {
         system.points.rotation.x += preset.rotationSpeed * 0.5 * (index + 1);
       });
 
+      // Update camera controls
+      if (cameraRef.current) {
+        if (cameraMode === 'orbit' && orbitControlsRef.current) {
+          orbitControlsRef.current.update();
+        } else if (cameraMode === 'firstPerson' && firstPersonControlsRef.current) {
+          firstPersonControlsRef.current.update(deltaTime);
+          
+          // Add some gentle camera movement based on audio
+          if (bassData.current > 0.5) {
+            const intensity = bassData.current * 0.02;
+            cameraRef.current.position.y += Math.sin(timeRef.current) * intensity;
+          }
+        }
+      }
+
       if (composerRef.current) {
         const currentPresetConfig = PRESETS[currentPreset];
         const isReducedMotion = currentPresetConfig.reducedMotion;
@@ -707,7 +777,13 @@ export default function Page() {
         if (fractalPass) {
           fractalPass.uniforms.u_time.value += 0.01;
           fractalPass.uniforms.u_frequencyData.value = Array.from(freqData.current).map(v => v / 255.0);
-          fractalPass.uniforms.u_amplitude.value = 0.5 + (bassData.current * 0.5);
+          
+          // Use detailed frequency bands for fractal parameters
+          fractalPass.uniforms.u_amplitude.value = 0.5 + (frequencyBands.subBass * 0.7);
+          fractalPass.uniforms.u_scale.value = 1.0 + (frequencyBands.bass * 0.5);
+          fractalPass.uniforms.u_morphFactor.value = frequencyBands.lowerMid + frequencyBands.mid;
+          fractalPass.uniforms.u_colorShift.value = (frequencyBands.presence + frequencyBands.brilliance) * 0.5;
+          fractalPass.uniforms.u_complexity.value = 1.0 + (frequencyBands.upperMid * 2.0);
 
         // Update shader uniforms for all effect passes
         const fluidPass = composerRef.current.passes.find(
@@ -727,21 +803,21 @@ export default function Page() {
           // Reduce or disable effects based on accessibility settings
           const motionScale = isReducedMotion ? 0.3 : 1.0;
           const performanceScale = isPerformanceMode ? 0.5 : 1.0;
-          fluidPass.uniforms.distortionAmount.value = (bassData.current + midData.current) * 0.1 * motionScale * performanceScale;
-          fluidPass.uniforms.frequency.value = trebleData.current * 10 * motionScale * performanceScale;
+          fluidPass.uniforms.distortionAmount.value = (frequencyBands.subBass + frequencyBands.bass) * 0.15 * motionScale * performanceScale;
+          fluidPass.uniforms.frequency.value = (frequencyBands.presence + frequencyBands.brilliance) * 12 * motionScale * performanceScale;
         }
 
         if (chromaticPass) {
           chromaticPass.uniforms.time.value = timeRef.current;
-          chromaticPass.uniforms.distortion.value = 0.5 + bassData.current * 0.5;
+          chromaticPass.uniforms.distortion.value = 0.3 + (frequencyBands.subBass * 0.4 + frequencyBands.bass * 0.3);
         }
 
         if (volumetricPass) {
           const lightX = 0.5 + Math.cos(timeRef.current * 0.5) * 0.3;
           const lightY = 0.5 + Math.sin(timeRef.current * 0.3) * 0.2;
           volumetricPass.uniforms.lightPosition.value.set(lightX, lightY);
-          volumetricPass.uniforms.exposure.value = 0.3 + midData.current * 0.2;
-          volumetricPass.uniforms.density.value = 0.5 + trebleData.current * 0.3;
+          volumetricPass.uniforms.exposure.value = 0.3 + (frequencyBands.lowerMid * 0.15 + frequencyBands.mid * 0.15);
+          volumetricPass.uniforms.density.value = 0.4 + (frequencyBands.upperMid * 0.2 + frequencyBands.presence * 0.2);
         }
 
         // Update sacred geometry colors and transformations
@@ -770,8 +846,12 @@ export default function Page() {
             // Neural web specific animations
             if (currentPresetConfig.geometryType === 'default' && frequencyResponse > 0.8) {
               // Trigger neural web expansion on high frequency with reduced motion
-              const scale = 1 + (frequencyResponse * 0.5 * motionScale * performanceScale);
+              // Use sub-bass for scale and bass for rotation
+              const scale = 1 + ((frequencyBands.subBass * 0.6 + frequencyBands.bass * 0.4) * motionScale * performanceScale);
               system.sacredGeometry.scale.setScalar(scale);
+              
+              // Add subtle twisting based on mid frequencies
+              system.sacredGeometry.rotation.z += (frequencyBands.lowerMid + frequencyBands.mid) * 0.02 * motionScale;
               
               // Pulse the opacity based on frequency with reduced motion
               const opacityBase = currentPresetConfig.reducedMotion ? 0.5 : 0.3;

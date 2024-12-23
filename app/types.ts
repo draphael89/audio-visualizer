@@ -1,27 +1,43 @@
 export interface VisualPreset {
+  // Core settings
   particleCount: number;
   bloomStrength: number;
   particleSize: number;
   rotationSpeed: number;
   colorPalette: number[];
+  
+  // Geometry settings
   geometryType?: 'flower' | 'metatron' | 'spiral' | 'default' | 'fractal' | 'mergedSacred' | 'hyperbolic';
-  mergedGeometryConfig?: {
-    primary: 'flower' | 'metatron' | 'spiral';
-    secondary: 'flower' | 'metatron' | 'spiral';
-    blendFactor?: number;
-    layerOffset?: number;
-  };
   geometryScale?: number;
   geometryRotation?: number;
   pulseIntensity?: number;
-  reducedMotion?: boolean;
-  performanceMode?: boolean;
+  
+  // Merged geometry configuration
+  mergedGeometryConfig?: {
+    primary?: 'flower' | 'metatron' | 'spiral';
+    secondary?: 'flower' | 'metatron' | 'spiral';
+    blendFactor?: number;
+    layerOffset?: number;
+  };
+  
+  // Fractal settings
   fractalOptions?: {
-    type: 'dragon' | 'koch' | 'sierpinski' | 'tree';
+    type?: 'dragon' | 'koch' | 'sierpinski' | 'tree';
     iterations?: number;
     scale?: number;
     angle?: number;
   };
+  
+  // Camera and motion
+  cameraSpeed?: number;
+  
+  // Post-processing effects
+  chromaticAberration?: number;
+  volumetricIntensity?: number;
+  
+  // Performance and accessibility
+  reducedMotion?: boolean;
+  performanceMode?: boolean;
 }
 
 export const PRESETS: Record<string, VisualPreset> = {
@@ -130,4 +146,4 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryRotation: 0.002,
     pulseIntensity: 1.4
   }
-};                
+};                         
