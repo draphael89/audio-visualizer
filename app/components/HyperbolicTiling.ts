@@ -20,8 +20,7 @@ const poincareToEuclidean = (x: number, y: number): HyperbolicPoint => {
 const generateHyperbolicPoints = (depth: number, scale: number = 1): HyperbolicPoint[] => {
   const points: HyperbolicPoint[] = [];
   const q = 7; // Number of edges in the fundamental polygon
-  const p = 3; // Number of polygons meeting at each vertex
-
+  // Each vertex connects 3 polygons in hyperbolic space
   for (let d = 0; d < depth; d++) {
     const r = Math.tanh(d * 0.5) * scale;
     const numPoints = Math.floor(2 * Math.PI * r * q);

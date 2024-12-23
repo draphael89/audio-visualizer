@@ -219,14 +219,27 @@ interface ParticleSystem {
 
 export default function Page() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const particleSystemsRef = useRef<ParticleSystem[]>([]);
   const [selectedTrack, setSelectedTrack] = useState(audioFiles[0]);
+  // Frequency bands state for audio visualization
+  const [frequencyBands, setFrequencyBands] = useState<Uint8Array | null>(null);
   const [currentPreset] = useState<keyof typeof PRESETS>("default");
   const [cameraMode, setCameraMode] = useState<'orbit' | 'firstPerson'>('orbit');
   
   // Camera control refs
   const orbitControlsRef = useRef<OrbitControls | null>(null);
   const firstPersonControlsRef = useRef<FirstPersonControls | null>(null);
-  const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
+  // Active camera target position
+  const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  
+  // Update camera target based on audio
+  useEffect(() => {
+    if (!cameraTargetRef.current) return;
+    const target = cameraTargetRef.current;
+    if (bassData.current > 0.7) {
+      target.z = Math.sin(timeRef.current * 0.001) * 5;
+    }
+  }, []);
   const [fluidDistortionIntensity, setFluidDistortionIntensity] = useState(0.5);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -249,7 +262,6 @@ export default function Page() {
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
   const cameraRef = useRef<THREE.PerspectiveCamera | undefined>(undefined);
   const rendererRef = useRef<THREE.WebGLRenderer | undefined>(undefined);
-  const particleSystemsRef = useRef<ParticleSystem[]>([]);
   const timeRef = useRef<number>(0);
   const freqData = useRef<Uint8Array | undefined>(undefined);
   const bassData = useRef<number>(0);
@@ -454,7 +466,7 @@ export default function Page() {
     return systems;
   }, []);
 
-  const updateVisualPreset = useCallback((preset: string, customPreset?: Partial<VisualPreset>) => {
+  const updateVisualPreset = useCallback((preset: keyof typeof PRESETS) => {
     if (!sceneRef.current || !composerRef.current) return;
     
     particleSystemsRef.current.forEach(system => {
@@ -669,16 +681,20 @@ export default function Page() {
       renderer.dispose();
       scene.clear();
     };
-  }, [createParticleSystems, currentPreset, updateVisualPreset, selectedTrack, togglePlay]);
+  }, [createParticleSystems, currentPreset, updateVisualPreset, selectedTrack, togglePlay, cameraMode]);
 
-  useEffect(() => {
-    const animate = () => {
-      if (!analyser || !freqData.current || !particleSystemsRef.current.length) return;
+  // Utility function for calculating frequency band averages
+  const average = (arr: Uint8Array): number => {
+    return arr.reduce((a, b) => a + b, 0) / arr.length;
+  };
+
+  const animate = useCallback((): void => {
+    if (!analyser || !freqData.current || !particleSystemsRef.current.length) return;
       
       analyser.getByteFrequencyData(freqData.current);
       
       // Split frequency data into detailed bands for more nuanced control
-      const frequencyBands = {
+      const newFrequencyBands = {
         subBass: average(freqData.current.slice(0, 5)) / 255,      // 20-60Hz
         bass: average(freqData.current.slice(5, 10)) / 255,        // 60-250Hz
         lowerMid: average(freqData.current.slice(10, 30)) / 255,   // 250-500Hz
@@ -687,11 +703,14 @@ export default function Page() {
         presence: average(freqData.current.slice(100, 150)) / 255, // 4-6kHz
         brilliance: average(freqData.current.slice(150, 200)) / 255 // 6-20kHz
       };
+      
+      // Update frequency bands state for external components
+      setFrequencyBands(freqData.current);
 
       const deltaTime = 1/60; // Fixed time step for consistent animation
       timeRef.current += deltaTime;
 
-      particleSystemsRef.current.forEach((system, index) => {
+      particleSystemsRef.current.forEach((system: ParticleSystem, index: number) => {
         const positions = (system.points.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
         const preset = PRESETS[currentPreset];
         
@@ -778,11 +797,11 @@ export default function Page() {
           fractalPass.uniforms.u_frequencyData.value = Array.from(freqData.current).map(v => v / 255.0);
           
           // Use detailed frequency bands for fractal parameters
-          fractalPass.uniforms.u_amplitude.value = 0.5 + (frequencyBands.subBass * 0.7);
-          fractalPass.uniforms.u_scale.value = 1.0 + (frequencyBands.bass * 0.5);
-          fractalPass.uniforms.u_morphFactor.value = frequencyBands.lowerMid + frequencyBands.mid;
-          fractalPass.uniforms.u_colorShift.value = (frequencyBands.presence + frequencyBands.brilliance) * 0.5;
-          fractalPass.uniforms.u_complexity.value = 1.0 + (frequencyBands.upperMid * 2.0);
+          fractalPass.uniforms.u_amplitude.value = 0.5 + (newFrequencyBands.subBass * 0.7);
+          fractalPass.uniforms.u_scale.value = 1.0 + (newFrequencyBands.bass * 0.5);
+          fractalPass.uniforms.u_morphFactor.value = newFrequencyBands.lowerMid + newFrequencyBands.mid;
+          fractalPass.uniforms.u_colorShift.value = (newFrequencyBands.presence + newFrequencyBands.brilliance) * 0.5;
+          fractalPass.uniforms.u_complexity.value = 1.0 + (newFrequencyBands.upperMid * 2.0);
 
         // Update shader uniforms for all effect passes
         const fluidPass = composerRef.current.passes.find(
@@ -802,25 +821,25 @@ export default function Page() {
           // Reduce or disable effects based on accessibility settings
           const motionScale = isReducedMotion ? 0.3 : 1.0;
           const performanceScale = isPerformanceMode ? 0.5 : 1.0;
-          fluidPass.uniforms.distortionAmount.value = (frequencyBands.subBass + frequencyBands.bass) * 0.15 * motionScale * performanceScale;
-          fluidPass.uniforms.frequency.value = (frequencyBands.presence + frequencyBands.brilliance) * 12 * motionScale * performanceScale;
+          fluidPass.uniforms.distortionAmount.value = (newFrequencyBands.subBass + newFrequencyBands.bass) * 0.15 * motionScale * performanceScale;
+          fluidPass.uniforms.frequency.value = (newFrequencyBands.presence + newFrequencyBands.brilliance) * 12 * motionScale * performanceScale;
         }
 
         if (chromaticPass) {
           chromaticPass.uniforms.time.value = timeRef.current;
-          chromaticPass.uniforms.distortion.value = 0.3 + (frequencyBands.subBass * 0.4 + frequencyBands.bass * 0.3);
+          chromaticPass.uniforms.distortion.value = 0.3 + (newFrequencyBands.subBass * 0.4 + newFrequencyBands.bass * 0.3);
         }
 
         if (volumetricPass) {
           const lightX = 0.5 + Math.cos(timeRef.current * 0.5) * 0.3;
           const lightY = 0.5 + Math.sin(timeRef.current * 0.3) * 0.2;
           volumetricPass.uniforms.lightPosition.value.set(lightX, lightY);
-          volumetricPass.uniforms.exposure.value = 0.3 + (frequencyBands.lowerMid * 0.15 + frequencyBands.mid * 0.15);
-          volumetricPass.uniforms.density.value = 0.4 + (frequencyBands.upperMid * 0.2 + frequencyBands.presence * 0.2);
+          volumetricPass.uniforms.exposure.value = 0.3 + (newFrequencyBands.lowerMid * 0.15 + newFrequencyBands.mid * 0.15);
+          volumetricPass.uniforms.density.value = 0.4 + (newFrequencyBands.upperMid * 0.2 + newFrequencyBands.presence * 0.2);
         }
 
         // Update sacred geometry colors and transformations
-        particleSystemsRef.current.forEach((system, index) => {
+        particleSystemsRef.current.forEach((system: ParticleSystem, index: number) => {
           if (system.sacredGeometry) {
             const material = system.sacredGeometry.material as THREE.LineBasicMaterial;
             const hue = (timeRef.current * 0.1 + index * 0.2) % 1;
@@ -870,8 +889,29 @@ export default function Page() {
       requestAnimationFrame(animate);
     };
 
-    animate();
-  }, [analyser, currentPreset]);
+    requestAnimationFrame(animate);
+  }, [
+    analyser,
+    currentPreset,
+    particleSystemsRef,
+    freqData,
+    timeRef,
+    bassData,
+    midData,
+    trebleData,
+    cameraMode,
+    orbitControlsRef,
+    firstPersonControlsRef,
+    cameraRef,
+    composerRef
+  ]);
+
+  useEffect(() => {
+    const animationFrame = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(animationFrame);
+    };
+  }, [animate]);
 
   useEffect(() => {
     const audio = new Audio(selectedTrack);
@@ -914,8 +954,4 @@ export default function Page() {
       <FPSStats />
     </>
   );
-}
-
-function average(arr: Uint8Array): number {
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
