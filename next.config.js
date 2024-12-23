@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     // Exclude .d.ts files from webpack processing
     config.module.rules.push({
       test: /\.d\.ts$/,

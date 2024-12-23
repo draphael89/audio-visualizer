@@ -15,15 +15,16 @@ module.exports = {
     '@typescript-eslint/no-unsafe-function-type': 'off',
     '@typescript-eslint/no-empty-object-type': 'off',
     '@typescript-eslint/ban-types': 'off',
-    'no-unused-vars': 'off'
+    '@typescript-eslint/ban-ts-comment': 'off',
+    'no-unused-vars': 'off',
+    '@typescript-eslint/no-var-requires': 'off'
   },
   ignorePatterns: [
-    '.next/**/*',
-    'node_modules/**/*',
-    'next.config.js',
-    '*.config.js',
-    'dist/**/*',
-    'build/**/*'
+    '.next',
+    'node_modules',
+    'dist',
+    'build',
+    '*.config.js'
   ],
   overrides: [
     {
