@@ -5,10 +5,15 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Scene } from './components/Scene';
 import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls';
+import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls';
 import { EffectComposer as ThreeEffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass';
+import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass';
+import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass';
+import { Pass } from 'three/examples/jsm/postprocessing/Pass';
 
 // Psychedelic transition shader
 const PsychedelicTransitionShader = {
@@ -58,15 +63,7 @@ const PsychedelicTransitionShader = {
     }
   `
 };
-import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls';
-import { EffectComposer as ThreeEffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass';
-import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass';
-import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass';
-import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass';
-import { Pass } from 'three/examples/jsm/postprocessing/Pass';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+
 import { ChromaticAberrationShader } from './shaders/ChromaticAberration';
 import { VolumetricLightShader } from './shaders/VolumetricLight';
 
@@ -102,8 +99,9 @@ const FluidDistortionShader = {
 };
 import { Controls } from './components/Controls';
 import { FPSStats } from './components/FPSStats';
-import { PRESETS, type VisualPreset, type FrequencyBands, type ExtendedEffectComposer } from './types';
+import { PRESETS, type VisualPreset, type FrequencyBands, type ExtendedEffectComposer, type PsychedelicShaderPass } from './types';
 import { FractalRayMarchShader } from './shaders/FractalRayMarch';
+import { useAudioAnalysis } from './hooks/useAudioAnalysis';
 import { createHyperbolicTiling, mergeGeometries } from './components/HyperbolicTiling';
 
 // Sacred geometry generators
@@ -279,8 +277,6 @@ export default function Page() {
   const mountRef = useRef<HTMLDivElement>(null);
   const particleSystemsRef = useRef<ParticleSystem[]>([]);
   const [selectedTrack, setSelectedTrack] = useState(audioFiles[0]);
-  // Frequency bands state for audio visualization
-  const frequencyBandsRef = useRef<FrequencyBands | null>(null);
   const [currentPreset] = useState<keyof typeof PRESETS>("default");
   const [cameraMode, setCameraMode] = useState<'orbit' | 'firstPerson'>('orbit');
   
@@ -294,7 +290,7 @@ export default function Page() {
   useEffect(() => {
     if (!cameraTargetRef.current) return;
     const target = cameraTargetRef.current;
-    if (bassData.current > 0.7) {
+    if (frequencyBandsRef.current?.bass > 0.7) {
       target.z = Math.sin(timeRef.current * 0.001) * 5;
     }
   }, []);
@@ -314,28 +310,26 @@ export default function Page() {
     setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
-  // Audio analyzer state with proper typing
-  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const composerRef = useRef<ThreeEffectComposer | undefined>(undefined);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
   const cameraRef = useRef<THREE.PerspectiveCamera | undefined>(undefined);
   const rendererRef = useRef<THREE.WebGLRenderer | undefined>(undefined);
   const timeRef = useRef<number>(0);
-  const freqData = useRef<Uint8Array | undefined>(undefined);
-  const bassData = useRef<number>(0);
-  const midData = useRef<number>(0);
-  const trebleData = useRef<number>(0);
+  const frequencyBandsRef = useRef<FrequencyBands>({
+    subBass: 0,
+    bass: 0,
+    lowerMid: 0,
+    mid: 0,
+    upperMid: 0,
+    presence: 0,
+    brilliance: 0
+  });
 
-  const setupAudio = async () => {
-    if (!audioRef.current) return;
-    const context = new AudioContext();
-    const source = context.createMediaElementSource(audioRef.current);
-    const analyser = context.createAnalyser();
-    analyser.fftSize = 1024;
-    source.connect(analyser).connect(context.destination);
-    freqData.current = new Uint8Array(analyser.frequencyBinCount);
-    setAnalyser(analyser);
-  };
+  const { setupAudioContext } = useAudioAnalysis({
+    onFrequencyBandUpdate: (bands) => {
+      frequencyBandsRef.current = bands;
+    }
+  });
 
   const createParticleSystems = useCallback((scene: THREE.Scene, preset: VisualPreset) => {
     const systems: ParticleSystem[] = [];
@@ -804,23 +798,23 @@ export default function Page() {
   };
 
   const animate = useCallback((): void => {
-    if (!analyser || !freqData.current || !particleSystemsRef.current.length) return;
+    if (!particleSystemsRef.current.length || !frequencyBandsRef.current) return;
       
-      analyser.getByteFrequencyData(freqData.current);
+      // Use frequency bands from useAudioAnalysis hook
+      const {
+        subBass,
+        bass,
+        lowerMid,
+        mid,
+        upperMid,
+        presence,
+        brilliance
+      } = frequencyBandsRef.current;
       
-      // Split frequency data into detailed bands for more nuanced control
-      frequencyBandsRef.current = {
-        subBass: average(freqData.current.slice(0, 5)) / 255,      // 20-60Hz
-        bass: average(freqData.current.slice(5, 10)) / 255,        // 60-250Hz
-        lowerMid: average(freqData.current.slice(10, 30)) / 255,   // 250-500Hz
-        mid: average(freqData.current.slice(30, 60)) / 255,        // 500-2kHz
-        upperMid: average(freqData.current.slice(60, 100)) / 255,  // 2-4kHz
-        presence: average(freqData.current.slice(100, 150)) / 255, // 4-6kHz
-        brilliance: average(freqData.current.slice(150, 200)) / 255 // 6-20kHz
-      };
-      
-      // Update frequency bands state for external components
-      // Frequency bands are now updated directly via ref
+      // Update particle systems based on frequency bands
+      particleSystemsRef.current.forEach((system, index) => {
+        const positions = system.points.geometry.attributes.position.array as Float32Array;
+        const initialPositions = system.initialPositions;
 
       const deltaTime = 1/60; // Fixed time step for consistent animation
       timeRef.current += deltaTime;
@@ -830,9 +824,10 @@ export default function Page() {
         const preset = PRESETS[currentPreset];
         
         for (let i = 0; i < positions.length; i += 3) {
-          const frequencyResponse = index === 0 ? bassData.current : 
-                                  index === 1 ? midData.current : 
-                                  trebleData.current;
+          const { subBass, bass, mid } = frequencyBandsRef.current;
+          const frequencyResponse = index === 0 ? subBass : 
+                                  index === 1 ? bass : 
+                                  mid;
 
           // Calculate orbit contribution
           const particleIndex = Math.floor(i / 3);
@@ -890,8 +885,8 @@ export default function Page() {
           firstPersonControlsRef.current.update(deltaTime);
           
           // Add some gentle camera movement based on audio
-          if (bassData.current > 0.5) {
-            const intensity = bassData.current * 0.02;
+          if (frequencyBandsRef.current.subBass > 0.5) {
+            const intensity = frequencyBandsRef.current.subBass * 0.02;
             cameraRef.current.position.y += Math.sin(timeRef.current) * intensity;
           }
         }
@@ -909,7 +904,8 @@ export default function Page() {
 
         if (fractalPass) {
           fractalPass.uniforms.u_time.value += 0.01;
-          fractalPass.uniforms.u_frequencyData.value = Array.from(freqData.current).map(v => v / 255.0);
+          const { subBass, bass, mid, upperMid, presence, brilliance } = frequencyBandsRef.current;
+          fractalPass.uniforms.u_frequencyData.value = [subBass, bass, mid, upperMid, presence, brilliance];
           
           // Use detailed frequency bands for fractal parameters
           fractalPass.uniforms.u_amplitude.value = 0.5 + ((frequencyBandsRef.current?.subBass ?? 0) * 0.7);
@@ -1010,9 +1006,10 @@ export default function Page() {
             system.sacredGeometry.rotation.y += PRESETS[currentPreset].rotationSpeed * 0.5;
             system.sacredGeometry.rotation.z += PRESETS[currentPreset].rotationSpeed * 0.3;
             
-            const frequencyResponse = index === 0 ? bassData.current : 
-                                           index === 1 ? midData.current : 
-                                           trebleData.current;
+            const { subBass, bass, mid } = frequencyBandsRef.current;
+            const frequencyResponse = index === 0 ? subBass : 
+                                    index === 1 ? bass : 
+                                    mid;
             
             const currentPresetConfig = PRESETS[currentPreset];
             // Apply accessibility and performance settings to animations
@@ -1078,14 +1075,16 @@ export default function Page() {
   useEffect(() => {
     const audio = new Audio(selectedTrack);
     audioRef.current = audio;
-    audio.addEventListener('ended', () => setIsPlaying(false));
-    setupAudio();
+    const handleEnded = () => setIsPlaying(false);
+    audio.addEventListener('ended', handleEnded);
+    setupAudioContext(audio);
 
     return () => {
       audio.pause();
-      audio.removeEventListener('ended', () => setIsPlaying(false));
+      audio.removeEventListener('ended', handleEnded);
+      audioRef.current = null;
     };
-  }, [selectedTrack]);
+  }, [selectedTrack, setIsPlaying, setupAudioContext]);
 
 
 
