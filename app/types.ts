@@ -8,11 +8,15 @@ export interface VisualPreset {
   geometryScale?: number;
   geometryRotation?: number;
   pulseIntensity?: number;
+  reducedMotion?: boolean;
+  performanceMode?: boolean;
 }
 
 export const PRESETS: Record<string, VisualPreset> = {
   default: {
     particleCount: 24000,
+    reducedMotion: false,
+    performanceMode: false,
     bloomStrength: 1.5,
     particleSize: 0.03,
     rotationSpeed: 0.001,
@@ -20,6 +24,8 @@ export const PRESETS: Record<string, VisualPreset> = {
   },
   cosmic: {
     particleCount: 40000,
+    reducedMotion: false,
+    performanceMode: false,
     bloomStrength: 2.0,
     particleSize: 0.02,
     rotationSpeed: 0.002,
@@ -27,6 +33,8 @@ export const PRESETS: Record<string, VisualPreset> = {
   },
   vortex: {
     particleCount: 30000,
+    reducedMotion: false,
+    performanceMode: false,
     bloomStrength: 1.8,
     particleSize: 0.025,
     rotationSpeed: 0.003,
@@ -65,4 +73,4 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryRotation: 0.002,
     pulseIntensity: 1.2
   }
-};    
+};          

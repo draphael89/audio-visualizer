@@ -88,7 +88,7 @@ const createMetatronsCube = (size: number) => {
   const indices: number[] = [];
   
   // Create platonic solids vertices
-  const phi = (1 + Math.sqrt(5)) / 2; // Golden ratio
+  // Initialize geometry
   
   // Cube vertices
   const cubeVertices = [
@@ -131,7 +131,7 @@ const createMetatronsCube = (size: number) => {
   return geometry;
 };
 
-const createNeuralWeb = (nodeCount: number, radius: number, threshold: number, frequency: number) => {
+const createNeuralWeb = (nodeCount: number, radius: number, threshold: number) => {
   const geometry = new THREE.BufferGeometry();
   const positions: number[] = [];
   const indices: number[] = [];
@@ -202,9 +202,23 @@ interface ParticleSystem {
 export default function Page() {
   const mountRef = useRef<HTMLDivElement>(null);
   const [selectedTrack, setSelectedTrack] = useState(audioFiles[0]);
-  const [currentPreset, setCurrentPreset] = useState<string>("default");
+  const [currentPreset] = useState<keyof typeof PRESETS>("default");
+  const [fluidDistortionIntensity, setFluidDistortionIntensity] = useState(0.5);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+
+
+  const togglePlay = useCallback(() => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  }, [isPlaying]);
+
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const composerRef = useRef<EffectComposer | undefined>(undefined);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
@@ -230,7 +244,9 @@ export default function Page() {
 
   const createParticleSystems = useCallback((scene: THREE.Scene, preset: VisualPreset) => {
     const systems: ParticleSystem[] = [];
-    const particlesPerSystem = Math.floor(preset.particleCount / 3);
+    // Adjust particle count based on performance mode
+    const performanceMultiplier = preset.performanceMode ? 0.5 : 1.0;
+    const particlesPerSystem = Math.floor(preset.particleCount * performanceMultiplier / 3);
 
     // Create sacred geometry if specified
     let sacredGeometry: THREE.LineSegments | THREE.Line | THREE.Mesh | undefined;
@@ -267,7 +283,7 @@ export default function Page() {
           break;
         default:
           // Create neural web as default sacred geometry
-          const webGeometry = createNeuralWeb(100, 12, 4, 0.5);
+          const webGeometry = createNeuralWeb(100, 12, 4);
           sacredGeometry = new THREE.LineSegments(webGeometry, lineMaterial);
           break;
       }
@@ -277,7 +293,7 @@ export default function Page() {
       }
     }
 
-    preset.colorPalette.forEach((color, index) => {
+    preset.colorPalette.forEach((color) => {
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(particlesPerSystem * 3);
       const velocities = new Float32Array(particlesPerSystem * 3);
@@ -320,7 +336,7 @@ export default function Page() {
     return systems;
   }, []);
 
-  const updateVisualPreset = useCallback((preset: string, customPreset?: Partial<VisualPreset>) => {
+  const updateVisualPreset = useCallback((preset: string) => {
     if (!sceneRef.current || !composerRef.current) return;
     
     particleSystemsRef.current.forEach(system => {
@@ -339,7 +355,7 @@ export default function Page() {
     if (bloomPass) {
       bloomPass.strength = presetConfig.bloomStrength;
     }
-  }, [createParticleSystems, setCurrentPreset]);
+  }, [createParticleSystems]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -403,7 +419,7 @@ export default function Page() {
           const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
           const currentType = PRESETS[currentPreset].geometryType || 'default';
           const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
-          updateVisualPreset(currentPreset, { ...PRESETS[currentPreset], geometryType: geometryTypes[nextTypeIndex] });
+          updateVisualPreset(geometryTypes[nextTypeIndex]);
           break;
         case 'f':
           if (event.ctrlKey) {
@@ -433,7 +449,7 @@ export default function Page() {
         const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
         const currentType = PRESETS[currentPreset].geometryType || 'default';
         const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
-        updateVisualPreset(currentPreset, { ...PRESETS[currentPreset], geometryType: geometryTypes[nextTypeIndex] });
+        updateVisualPreset(geometryTypes[nextTypeIndex]);
         event.preventDefault(); // Prevent default middle-click behavior
       }
     };
@@ -449,7 +465,7 @@ export default function Page() {
       renderer.dispose();
       scene.clear();
     };
-  }, [createParticleSystems, currentPreset, updateVisualPreset]);
+  }, [createParticleSystems, currentPreset, updateVisualPreset, selectedTrack, togglePlay]);
 
   useEffect(() => {
     const animate = () => {
@@ -495,6 +511,10 @@ export default function Page() {
       });
 
       if (composerRef.current) {
+        const currentPresetConfig = PRESETS[currentPreset];
+        const isReducedMotion = currentPresetConfig.reducedMotion;
+        const isPerformanceMode = currentPresetConfig.performanceMode;
+
         // Update fluid distortion shader uniforms
         const fluidPass = composerRef.current.passes.find(
           pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.distortionAmount
@@ -502,8 +522,11 @@ export default function Page() {
         
         if (fluidPass) {
           fluidPass.uniforms.time.value = timeRef.current;
-          fluidPass.uniforms.distortionAmount.value = (bassData.current + midData.current) * 0.1;
-          fluidPass.uniforms.frequency.value = trebleData.current * 10;
+          // Reduce or disable effects based on accessibility settings
+          const motionScale = isReducedMotion ? 0.3 : 1.0;
+          const performanceScale = isPerformanceMode ? 0.5 : 1.0;
+          fluidPass.uniforms.distortionAmount.value = (bassData.current + midData.current) * 0.1 * motionScale * performanceScale;
+          fluidPass.uniforms.frequency.value = trebleData.current * 10 * motionScale * performanceScale;
         }
 
         // Update sacred geometry colors and transformations
@@ -521,17 +544,27 @@ export default function Page() {
                                            trebleData.current;
             
             const currentPresetConfig = PRESETS[currentPreset];
+            // Apply accessibility and performance settings to animations
+            const motionScale = currentPresetConfig.reducedMotion ? 0.3 : 1.0;
+            const performanceScale = currentPresetConfig.performanceMode ? 0.5 : 1.0;
+            const rotationSpeed = currentPresetConfig.rotationSpeed * motionScale;
+
+            // Update rotation speed based on reduced motion setting
+            system.sacredGeometry.rotation.y += rotationSpeed;
+
             // Neural web specific animations
             if (currentPresetConfig.geometryType === 'default' && frequencyResponse > 0.8) {
-              // Trigger neural web expansion on high frequency
-              const scale = 1 + frequencyResponse * 0.5;
+              // Trigger neural web expansion on high frequency with reduced motion
+              const scale = 1 + (frequencyResponse * 0.5 * motionScale * performanceScale);
               system.sacredGeometry.scale.setScalar(scale);
               
-              // Pulse the opacity based on frequency
-              (material as THREE.LineBasicMaterial).opacity = 0.3 + frequencyResponse * 0.7;
+              // Pulse the opacity based on frequency with reduced motion
+              const opacityBase = currentPresetConfig.reducedMotion ? 0.5 : 0.3;
+              const opacityRange = currentPresetConfig.reducedMotion ? 0.3 : 0.7;
+              (material as THREE.LineBasicMaterial).opacity = opacityBase + (frequencyResponse * opacityRange * performanceScale);
             } else {
-              // Normal sacred geometry animations
-              const scale = 1 + frequencyResponse * 0.3;
+              // Normal sacred geometry animations with reduced motion
+              const scale = 1 + (frequencyResponse * 0.3 * motionScale * performanceScale);
               system.sacredGeometry.scale.setScalar(scale);
             }
           }
@@ -558,16 +591,7 @@ export default function Page() {
     };
   }, [selectedTrack]);
 
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
-    setIsPlaying(!isPlaying);
-  };
+
 
   return (
     <>
@@ -583,27 +607,10 @@ export default function Page() {
         }}
       />
       <Controls
-        onPresetChange={(preset) => {
-          setCurrentPreset(preset);
-          updateVisualPreset(preset);
-        }}
-        onParticleCountChange={(count) => {
-          const newPreset = {
-            ...PRESETS[currentPreset],
-            particleCount: count
-          };
-          updateVisualPreset(currentPreset);
-        }}
-        onBloomStrengthChange={(strength) => {
-          if (composerRef.current) {
-            const bloomPass = composerRef.current.passes.find(
-              (pass: Pass) => pass instanceof UnrealBloomPass
-            ) as UnrealBloomPass;
-            if (bloomPass) {
-              bloomPass.strength = strength;
-            }
-          }
-        }}
+        currentPreset={currentPreset}
+        onPresetChange={updateVisualPreset}
+        fluidDistortionIntensity={fluidDistortionIntensity}
+        onFluidDistortionChange={setFluidDistortionIntensity}
         isPlaying={isPlaying}
         onPlayPause={togglePlay}
         selectedTrack={selectedTrack}
