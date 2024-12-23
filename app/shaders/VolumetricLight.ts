@@ -1,14 +1,28 @@
-import * as THREE from 'three';
+import { Vector2, Uniform, ShaderMaterial } from 'three';
 
-export const VolumetricLightShader = {
+interface VolumetricLightUniforms {
+  tDiffuse: { value: null | THREE.Texture };
+  lightPosition: { value: Vector2 };
+  exposure: { value: number };
+  decay: { value: number };
+  density: { value: number };
+  weight: { value: number };
+  samples: { value: number };
+}
+
+export const VolumetricLightShader: {
+  uniforms: { [K in keyof VolumetricLightUniforms]: Uniform };
+  vertexShader: string;
+  fragmentShader: string;
+} = {
   uniforms: {
-    'tDiffuse': { value: null },
-    'lightPosition': { value: new THREE.Vector2(0.5, 0.5) },
-    'exposure': { value: 0.3 },
-    'decay': { value: 0.95 },
-    'density': { value: 0.5 },
-    'weight': { value: 0.4 },
-    'samples': { value: 50 }
+    'tDiffuse': new Uniform(null),
+    'lightPosition': new Uniform(new Vector2(0.5, 0.5)),
+    'exposure': new Uniform(0.3),
+    'decay': new Uniform(0.95),
+    'density': new Uniform(0.5),
+    'weight': new Uniform(0.4),
+    'samples': new Uniform(50)
   },
   vertexShader: `
     varying vec2 vUv;

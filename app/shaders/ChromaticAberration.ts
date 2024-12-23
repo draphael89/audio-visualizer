@@ -1,8 +1,20 @@
-export const ChromaticAberrationShader = {
+import { Uniform, ShaderMaterial } from 'three';
+
+interface ChromaticAberrationUniforms {
+  tDiffuse: { value: null | THREE.Texture };
+  distortion: { value: number };
+  time: { value: number };
+}
+
+export const ChromaticAberrationShader: {
+  uniforms: { [K in keyof ChromaticAberrationUniforms]: Uniform };
+  vertexShader: string;
+  fragmentShader: string;
+} = {
   uniforms: {
-    'tDiffuse': { value: null },
-    'distortion': { value: 0.5 },
-    'time': { value: 0 }
+    'tDiffuse': new Uniform(null),
+    'distortion': new Uniform(0.5),
+    'time': new Uniform(0)
   },
   vertexShader: `
     varying vec2 vUv;

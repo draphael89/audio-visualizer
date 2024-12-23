@@ -1,13 +1,30 @@
-export const FractalRayMarchShader = {
+import { ShaderMaterial, Uniform, Vector2 } from 'three';
+
+interface FractalRayMarchUniforms {
+  tDiffuse: { value: null | THREE.Texture };
+  u_time: { value: number };
+  u_amplitude: { value: number };
+  u_resolution: { value: [number, number] };
+  u_frequencyData: { value: Float32Array };
+  u_bassIntensity: { value: number };
+  u_midIntensity: { value: number };
+  u_trebleIntensity: { value: number };
+}
+
+export const FractalRayMarchShader: {
+  uniforms: { [K in keyof FractalRayMarchUniforms]: Uniform };
+  vertexShader: string;
+  fragmentShader: string;
+} = {
   uniforms: {
-    'tDiffuse': { value: null },
-    'u_time': { value: 0.0 },
-    'u_amplitude': { value: 0.5 },
-    'u_resolution': { value: [800.0, 600.0] },
-    'u_frequencyData': { value: new Float32Array(128) },
-    'u_bassIntensity': { value: 0.0 },
-    'u_midIntensity': { value: 0.0 },
-    'u_trebleIntensity': { value: 0.0 }
+    'tDiffuse': new Uniform(null),
+    'u_time': new Uniform(0.0),
+    'u_amplitude': new Uniform(0.5),
+    'u_resolution': new Uniform([800.0, 600.0]),
+    'u_frequencyData': new Uniform(new Float32Array(128)),
+    'u_bassIntensity': new Uniform(0.0),
+    'u_midIntensity': new Uniform(0.0),
+    'u_trebleIntensity': new Uniform(0.0)
   },
 
   vertexShader: `
