@@ -46,7 +46,7 @@ const FluidDistortionShader = {
 };
 import { Controls } from './components/Controls';
 import { FPSStats } from './components/FPSStats';
-import { PRESETS, type VisualPreset } from './types';
+import { PRESETS, type VisualPreset, type FrequencyBands } from './types';
 import { FractalRayMarchShader } from './shaders/FractalRayMarch';
 import { createHyperbolicTiling, mergeGeometries } from './components/HyperbolicTiling';
 
@@ -222,7 +222,7 @@ export default function Page() {
   const particleSystemsRef = useRef<ParticleSystem[]>([]);
   const [selectedTrack, setSelectedTrack] = useState(audioFiles[0]);
   // Frequency bands state for audio visualization
-  const [frequencyBands, setFrequencyBands] = useState<Uint8Array | null>(null);
+  const frequencyBandsRef = useRef<FrequencyBands | null>(null);
   const [currentPreset] = useState<keyof typeof PRESETS>("default");
   const [cameraMode, setCameraMode] = useState<'orbit' | 'firstPerson'>('orbit');
   
@@ -694,7 +694,7 @@ export default function Page() {
       analyser.getByteFrequencyData(freqData.current);
       
       // Split frequency data into detailed bands for more nuanced control
-      const newFrequencyBands = {
+      frequencyBandsRef.current = {
         subBass: average(freqData.current.slice(0, 5)) / 255,      // 20-60Hz
         bass: average(freqData.current.slice(5, 10)) / 255,        // 60-250Hz
         lowerMid: average(freqData.current.slice(10, 30)) / 255,   // 250-500Hz
@@ -705,7 +705,7 @@ export default function Page() {
       };
       
       // Update frequency bands state for external components
-      setFrequencyBands(freqData.current);
+      // Frequency bands are now updated directly via ref
 
       const deltaTime = 1/60; // Fixed time step for consistent animation
       timeRef.current += deltaTime;
@@ -797,11 +797,11 @@ export default function Page() {
           fractalPass.uniforms.u_frequencyData.value = Array.from(freqData.current).map(v => v / 255.0);
           
           // Use detailed frequency bands for fractal parameters
-          fractalPass.uniforms.u_amplitude.value = 0.5 + (newFrequencyBands.subBass * 0.7);
-          fractalPass.uniforms.u_scale.value = 1.0 + (newFrequencyBands.bass * 0.5);
-          fractalPass.uniforms.u_morphFactor.value = newFrequencyBands.lowerMid + newFrequencyBands.mid;
-          fractalPass.uniforms.u_colorShift.value = (newFrequencyBands.presence + newFrequencyBands.brilliance) * 0.5;
-          fractalPass.uniforms.u_complexity.value = 1.0 + (newFrequencyBands.upperMid * 2.0);
+          fractalPass.uniforms.u_amplitude.value = 0.5 + ((frequencyBandsRef.current?.subBass ?? 0) * 0.7);
+          fractalPass.uniforms.u_scale.value = 1.0 + ((frequencyBandsRef.current?.bass ?? 0) * 0.5);
+          fractalPass.uniforms.u_morphFactor.value = (frequencyBandsRef.current?.lowerMid ?? 0) + (frequencyBandsRef.current?.mid ?? 0);
+          fractalPass.uniforms.u_colorShift.value = ((frequencyBandsRef.current?.presence ?? 0) + (frequencyBandsRef.current?.brilliance ?? 0)) * 0.5;
+          fractalPass.uniforms.u_complexity.value = 1.0 + ((frequencyBandsRef.current?.upperMid ?? 0) * 2.0);
 
         // Update shader uniforms for all effect passes
         const fluidPass = composerRef.current.passes.find(
@@ -821,21 +821,21 @@ export default function Page() {
           // Reduce or disable effects based on accessibility settings
           const motionScale = isReducedMotion ? 0.3 : 1.0;
           const performanceScale = isPerformanceMode ? 0.5 : 1.0;
-          fluidPass.uniforms.distortionAmount.value = (newFrequencyBands.subBass + newFrequencyBands.bass) * 0.15 * motionScale * performanceScale;
-          fluidPass.uniforms.frequency.value = (newFrequencyBands.presence + newFrequencyBands.brilliance) * 12 * motionScale * performanceScale;
+          fluidPass.uniforms.distortionAmount.value = ((frequencyBandsRef.current?.subBass ?? 0) + (frequencyBandsRef.current?.bass ?? 0)) * 0.15 * motionScale * performanceScale;
+          fluidPass.uniforms.frequency.value = ((frequencyBandsRef.current?.presence ?? 0) + (frequencyBandsRef.current?.brilliance ?? 0)) * 12 * motionScale * performanceScale;
         }
 
         if (chromaticPass) {
           chromaticPass.uniforms.time.value = timeRef.current;
-          chromaticPass.uniforms.distortion.value = 0.3 + (newFrequencyBands.subBass * 0.4 + newFrequencyBands.bass * 0.3);
+          chromaticPass.uniforms.distortion.value = 0.3 + ((frequencyBandsRef.current?.subBass ?? 0) * 0.4 + (frequencyBandsRef.current?.bass ?? 0) * 0.3);
         }
 
         if (volumetricPass) {
           const lightX = 0.5 + Math.cos(timeRef.current * 0.5) * 0.3;
           const lightY = 0.5 + Math.sin(timeRef.current * 0.3) * 0.2;
           volumetricPass.uniforms.lightPosition.value.set(lightX, lightY);
-          volumetricPass.uniforms.exposure.value = 0.3 + (newFrequencyBands.lowerMid * 0.15 + newFrequencyBands.mid * 0.15);
-          volumetricPass.uniforms.density.value = 0.4 + (newFrequencyBands.upperMid * 0.2 + newFrequencyBands.presence * 0.2);
+          volumetricPass.uniforms.exposure.value = 0.3 + ((frequencyBandsRef.current?.lowerMid ?? 0) * 0.15 + (frequencyBandsRef.current?.mid ?? 0) * 0.15);
+          volumetricPass.uniforms.density.value = 0.4 + ((frequencyBandsRef.current?.upperMid ?? 0) * 0.2 + (frequencyBandsRef.current?.presence ?? 0) * 0.2);
         }
 
         // Update sacred geometry colors and transformations
@@ -865,11 +865,11 @@ export default function Page() {
             if (currentPresetConfig.geometryType === 'default' && frequencyResponse > 0.8) {
               // Trigger neural web expansion on high frequency with reduced motion
               // Use sub-bass for scale and bass for rotation
-              const scale = 1 + ((frequencyBands.subBass * 0.6 + frequencyBands.bass * 0.4) * motionScale * performanceScale);
+              const scale = 1 + ((frequencyBandsRef.current?.subBass ?? 0) * 0.6 + (frequencyBandsRef.current?.bass ?? 0) * 0.4) * motionScale * performanceScale;
               system.sacredGeometry.scale.setScalar(scale);
               
               // Add subtle twisting based on mid frequencies
-              system.sacredGeometry.rotation.z += (frequencyBands.lowerMid + frequencyBands.mid) * 0.02 * motionScale;
+              system.sacredGeometry.rotation.z += ((frequencyBandsRef.current?.lowerMid ?? 0) + (frequencyBandsRef.current?.mid ?? 0)) * 0.02 * motionScale;
               
               // Pulse the opacity based on frequency with reduced motion
               const opacityBase = currentPresetConfig.reducedMotion ? 0.5 : 0.3;

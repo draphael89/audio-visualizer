@@ -1,3 +1,13 @@
+export interface FrequencyBands {
+  subBass: number;    // 20-60Hz
+  bass: number;       // 60-250Hz
+  lowerMid: number;   // 250-500Hz
+  mid: number;        // 500-2kHz
+  upperMid: number;   // 2-4kHz
+  presence: number;   // 4-6kHz
+  brilliance: number; // 6-20kHz
+}
+
 export interface VisualPreset {
   // Core settings
   particleCount: number;
@@ -146,4 +156,4 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryRotation: 0.002,
     pulseIntensity: 1.4
   }
-};                         
+};                            
