@@ -1,34 +1,13 @@
 import React, { useRef, useEffect, useState, type ReactElement } from 'react';
-import { useFrame, useThree, extend } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-
-// Three.js elements are already typed in @react-three/fiber
-extend({
-  OrbitControls,
-  mesh: THREE.Mesh,
-  sphereGeometry: THREE.SphereGeometry,
-  meshStandardMaterial: THREE.MeshStandardMaterial,
-  ambientLight: THREE.AmbientLight,
-  pointLight: THREE.PointLight,
-  group: THREE.Group
-});
 
 type TouchEventHandler = (event: TouchEvent) => void;
 
 // Touch feedback constants
 const MIN_TOUCH_TARGET = 44; // minimum touch target size in pixels
-
-extend({ 
-  OrbitControls,
-  mesh: THREE.Mesh,
-  sphereGeometry: THREE.SphereGeometry,
-  meshStandardMaterial: THREE.MeshStandardMaterial,
-  ambientLight: THREE.AmbientLight,
-  pointLight: THREE.PointLight,
-  group: THREE.Group
-});
 
 // Using OrbitControls directly from drei import above
 type OrbitControlsRef = React.ComponentRef<typeof OrbitControls>;
