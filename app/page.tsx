@@ -41,6 +41,7 @@ import { Controls } from './components/Controls';
 import { FPSStats } from './components/FPSStats';
 import { PRESETS, type VisualPreset } from './types';
 import { FractalRayMarchShader } from './shaders/FractalRayMarch';
+import { createHyperbolicTiling, mergeGeometries } from './components/HyperbolicTiling';
 
 // Sacred geometry generators
 const createFlowerOfLife = (radius: number, layers: number = 6) => {
@@ -282,6 +283,60 @@ export default function Page() {
           const spiralGeometry = createSpiralGeometry(5, 100, 10);
           sacredGeometry = new THREE.Line(spiralGeometry, lineMaterial);
           break;
+        case 'hyperbolic':
+          const hyperbolicGeometry = createHyperbolicTiling(6, preset.geometryScale || 10);
+          sacredGeometry = new THREE.LineSegments(hyperbolicGeometry, lineMaterial);
+          break;
+        case 'mergedSacred':
+          if (preset.mergedGeometryConfig) {
+            const { primary, secondary, layerOffset = 0.5 } = preset.mergedGeometryConfig;
+            let primaryGeometry: THREE.BufferGeometry;
+            let secondaryGeometry: THREE.BufferGeometry;
+
+            // Create primary geometry
+            switch (primary) {
+              case 'flower':
+                primaryGeometry = createFlowerOfLife(10, 6);
+                break;
+              case 'metatron':
+                primaryGeometry = createMetatronsCube(8);
+                break;
+              case 'spiral':
+                primaryGeometry = createSpiralGeometry(5, 100, 10);
+                break;
+              default:
+                primaryGeometry = createFlowerOfLife(10, 6);
+            }
+
+            // Create secondary geometry
+            switch (secondary) {
+              case 'flower':
+                secondaryGeometry = createFlowerOfLife(10, 6);
+                break;
+              case 'metatron':
+                secondaryGeometry = createMetatronsCube(8);
+                break;
+              case 'spiral':
+                secondaryGeometry = createSpiralGeometry(5, 100, 10);
+                break;
+              default:
+                secondaryGeometry = createMetatronsCube(8);
+            }
+
+            // Merge geometries with offset
+            const mergedGeometry = mergeGeometries(
+              [primaryGeometry, secondaryGeometry],
+              [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, layerOffset)]
+            );
+            sacredGeometry = new THREE.LineSegments(mergedGeometry, lineMaterial);
+          } else {
+            const webGeometry = createNeuralWeb(100, 12, 4);
+            sacredGeometry = new THREE.LineSegments(webGeometry, lineMaterial);
+          }
+          break;
+        case 'fractal':
+          // Fractal geometry is handled by the shader pass
+          break;
         default:
           // Create neural web as default sacred geometry
           const webGeometry = createNeuralWeb(100, 12, 4);
@@ -337,7 +392,7 @@ export default function Page() {
     return systems;
   }, []);
 
-  const updateVisualPreset = useCallback((preset: string) => {
+  const updateVisualPreset = useCallback((preset: string, customPreset?: Partial<VisualPreset>) => {
     if (!sceneRef.current || !composerRef.current) return;
     
     particleSystemsRef.current.forEach(system => {
@@ -422,7 +477,7 @@ export default function Page() {
           break;
         case 'g':
           // Cycle through geometry types
-          const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
+          const geometryTypes = ['flower', 'metatron', 'spiral', 'default', 'hyperbolic', 'mergedSacred', 'fractal'] as const;
           const currentType = PRESETS[currentPreset].geometryType || 'default';
           const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
           updateVisualPreset(geometryTypes[nextTypeIndex]);
@@ -452,7 +507,7 @@ export default function Page() {
     const handleMouseDown = (event: MouseEvent) => {
       if (event.button === 1) { // Middle click
         // Cycle through geometry types
-        const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
+        const geometryTypes = ['flower', 'metatron', 'spiral', 'default', 'hyperbolic', 'mergedSacred', 'fractal'] as const;
         const currentType = PRESETS[currentPreset].geometryType || 'default';
         const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
         updateVisualPreset(geometryTypes[nextTypeIndex]);
@@ -593,7 +648,7 @@ export default function Page() {
     };
 
     animate();
-  }, [analyser, currentPreset]);
+  }, [analyser, currentPreset, PRESETS]);
 
   useEffect(() => {
     const audio = new Audio(selectedTrack);

@@ -4,7 +4,13 @@ export interface VisualPreset {
   particleSize: number;
   rotationSpeed: number;
   colorPalette: number[];
-  geometryType?: 'flower' | 'metatron' | 'spiral' | 'default' | 'fractal';
+  geometryType?: 'flower' | 'metatron' | 'spiral' | 'default' | 'fractal' | 'mergedSacred' | 'hyperbolic';
+  mergedGeometryConfig?: {
+    primary: 'flower' | 'metatron' | 'spiral';
+    secondary: 'flower' | 'metatron' | 'spiral';
+    blendFactor?: number;
+    layerOffset?: number;
+  };
   geometryScale?: number;
   geometryRotation?: number;
   pulseIntensity?: number;
@@ -95,5 +101,33 @@ export const PRESETS: Record<string, VisualPreset> = {
       scale: 0.5,
       angle: Math.PI / 2
     }
+  },
+  mergedSacred: {
+    particleCount: 65000,
+    bloomStrength: 2.8,
+    particleSize: 0.035,
+    rotationSpeed: 0.002,
+    colorPalette: [0x9400d3, 0x4b0082, 0x0000ff], // Deep Purple, Indigo, Blue
+    geometryType: 'mergedSacred',
+    geometryScale: 1.5,
+    geometryRotation: 0.0015,
+    pulseIntensity: 1.2,
+    mergedGeometryConfig: {
+      primary: 'metatron',
+      secondary: 'flower',
+      blendFactor: 0.6,
+      layerOffset: 0.5
+    }
+  },
+  hyperbolicWeb: {
+    particleCount: 70000,
+    bloomStrength: 3.0,
+    particleSize: 0.03,
+    rotationSpeed: 0.0025,
+    colorPalette: [0x00ff00, 0x00ffff, 0xff00ff], // Green, Cyan, Magenta
+    geometryType: 'hyperbolic',
+    geometryScale: 1.8,
+    geometryRotation: 0.002,
+    pulseIntensity: 1.4
   }
-};             
+};                
