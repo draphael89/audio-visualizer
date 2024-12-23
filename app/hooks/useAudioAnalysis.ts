@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useEffect } from 'react';
 import { FrequencyBands } from '../types';
+import '../types/window.d.ts';
 
 interface UseAudioAnalysisProps {
   onFrequencyBandUpdate?: (bands: FrequencyBands) => void;
@@ -15,7 +16,7 @@ export function useAudioAnalysis({ onFrequencyBandUpdate }: UseAudioAnalysisProp
 
   const setupAudioContext = useCallback((audioElement: HTMLAudioElement) => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext || (window.webkitAudioContext as typeof AudioContext))();
     }
 
     const audioContext = audioContextRef.current;

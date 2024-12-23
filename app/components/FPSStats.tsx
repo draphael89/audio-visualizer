@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 
-export function FPSStats() {
+export function FPSStats(): ReactElement {
   const fpsRef = useRef<HTMLDivElement>(null);
   const framesRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
@@ -60,4 +60,4 @@ export function FPSStats() {
       FPS: --
     </div>
   );
-}    
+}          

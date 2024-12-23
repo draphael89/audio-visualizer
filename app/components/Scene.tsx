@@ -1,11 +1,11 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { useFrame, useThree, extend, ThreeElements } from '@react-three/fiber';
+import React, { useRef, useEffect, useState, type ReactElement } from 'react';
+import { useFrame, useThree, extend } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { OrbitControls } from '@react-three/drei';
-import type { OrbitControlsProps } from '@react-three/drei';
 import * as THREE from 'three';
 
-extend({ 
+// Three.js elements are already typed in @react-three/fiber
+extend({
   OrbitControls,
   mesh: THREE.Mesh,
   sphereGeometry: THREE.SphereGeometry,
@@ -30,10 +30,10 @@ extend({
   group: THREE.Group
 });
 
-import { OrbitControls as OrbitControlsImpl } from '@react-three/drei';
-type OrbitControlsRef = React.ComponentRef<typeof OrbitControlsImpl>;
+// Using OrbitControls directly from drei import above
+type OrbitControlsRef = React.ComponentRef<typeof OrbitControls>;
 
-export const Scene: React.FC = () => {
+export const Scene = (): ReactElement => {
   const { gl } = useThree();
   const [isTouching, setIsTouching] = useState(false);
   const orbitControlsRef = useRef<OrbitControlsRef>(null);

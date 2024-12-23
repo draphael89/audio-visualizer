@@ -1,5 +1,6 @@
 "use client";
-import { useRef, useEffect, useState, useCallback } from "react";
+
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import * as THREE from "three";
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -14,6 +15,25 @@ import { GlitchPass } from 'three/examples/jsm/postprocessing/GlitchPass';
 import { HalftonePass } from 'three/examples/jsm/postprocessing/HalftonePass';
 import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass';
 import { Pass } from 'three/examples/jsm/postprocessing/Pass';
+import { Controls } from './components/Controls';
+import { FPSStats } from './components/FPSStats';
+import { 
+  PRESETS, 
+  type PsychedelicShaderPass,
+  type VisualPreset,
+  type FrequencyBands,
+  type ExtendedEffectComposer 
+} from './types';
+import { FractalRayMarchShader } from './shaders/FractalRayMarch';
+import { useAudioAnalysis } from './hooks/useAudioAnalysis';
+import { createHyperbolicTiling, mergeGeometries } from './components/HyperbolicTiling';
+
+// Audio file list
+const audioFiles = [
+  '/audio/ambient1.mp3',
+  '/audio/electronic1.mp3',
+  '/audio/psychedelic1.mp3'
+];
 
 // Psychedelic transition shader
 const PsychedelicTransitionShader = {
@@ -97,13 +117,6 @@ const FluidDistortionShader = {
     }
   `
 };
-import { Controls } from './components/Controls';
-import { FPSStats } from './components/FPSStats';
-import { PRESETS, type VisualPreset, type FrequencyBands, type ExtendedEffectComposer, type PsychedelicShaderPass } from './types';
-import { FractalRayMarchShader } from './shaders/FractalRayMarch';
-import { useAudioAnalysis } from './hooks/useAudioAnalysis';
-import { createHyperbolicTiling, mergeGeometries } from './components/HyperbolicTiling';
-
 // Sacred geometry generators
 const createFlowerOfLife = (radius: number, layers: number = 6) => {
   const geometry = new THREE.BufferGeometry();
@@ -249,12 +262,6 @@ const createSpiralGeometry = (turns: number, pointsPerTurn: number, radius: numb
   return geometry;
 };
 
-const audioFiles = [
-  "/audio/ambient.mp3",
-  "/audio/drums.mp3",
-  "/audio/synth.mp3"
-];
-
 interface ParticleSystem {
   points: THREE.Points;
   initialPositions: Float32Array;
@@ -273,12 +280,33 @@ interface ParticleSystem {
   dispose?: () => void;
 }
 
-export default function Page() {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const particleSystemsRef = useRef<ParticleSystem[]>([]);
-  const [selectedTrack, setSelectedTrack] = useState(audioFiles[0]);
+export default function Page(): JSX.Element {
+  // Audio analysis state
+  // Audio analysis state is now handled by useAudioAnalysis hook
   const [currentPreset] = useState<keyof typeof PRESETS>("default");
+  const [fluidDistortionIntensity, setFluidDistortionIntensity] = useState<number>(0.5);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [selectedTrack, setSelectedTrack] = useState<string>(audioFiles[0]);
   const [cameraMode, setCameraMode] = useState<'orbit' | 'firstPerson'>('orbit');
+
+  // Refs for Three.js objects
+  const mountRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<THREE.Scene>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const particleSystemsRef = useRef<ParticleSystem[]>([]);
+  const composerRef = useRef<ThreeEffectComposer | undefined>(undefined);
+  const timeRef = useRef<number>(0);
+  const frequencyBandsRef = useRef<FrequencyBands>({
+    subBass: 0,
+    bass: 0,
+    lowerMid: 0,
+    mid: 0,
+    upperMid: 0,
+    presence: 0,
+    brilliance: 0
+  });
   
   // Camera control refs
   const orbitControlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -294,9 +322,7 @@ export default function Page() {
       target.z = Math.sin(timeRef.current * 0.001) * 5;
     }
   }, []);
-  const [fluidDistortionIntensity, setFluidDistortionIntensity] = useState(0.5);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  // State declarations moved to top
 
 
   const togglePlay = useCallback(() => {
@@ -310,24 +336,10 @@ export default function Page() {
     setIsPlaying(!isPlaying);
   }, [isPlaying]);
 
-  const composerRef = useRef<ThreeEffectComposer | undefined>(undefined);
-  const sceneRef = useRef<THREE.Scene | undefined>(undefined);
-  const cameraRef = useRef<THREE.PerspectiveCamera | undefined>(undefined);
-  const rendererRef = useRef<THREE.WebGLRenderer | undefined>(undefined);
-  const timeRef = useRef<number>(0);
-  const frequencyBandsRef = useRef<FrequencyBands>({
-    subBass: 0,
-    bass: 0,
-    lowerMid: 0,
-    mid: 0,
-    upperMid: 0,
-    presence: 0,
-    brilliance: 0
-  });
-
   const { setupAudioContext } = useAudioAnalysis({
-    onFrequencyBandUpdate: (bands) => {
+    onFrequencyBandUpdate: (bands: FrequencyBands) => {
       frequencyBandsRef.current = bands;
+      // Frequency data is now accessed directly from frequencyBandsRef.current
     }
   });
 
@@ -436,7 +448,7 @@ export default function Page() {
       }
     }
 
-    preset.colorPalette.forEach((color) => {
+    preset.colorPalette.forEach((color: number) => {
       const geometry = new THREE.BufferGeometry();
       const positions = new Float32Array(particlesPerSystem * 3);
       const velocities = new Float32Array(particlesPerSystem * 3);
@@ -793,29 +805,14 @@ export default function Page() {
   }, [createParticleSystems, currentPreset, updateVisualPreset, selectedTrack, togglePlay, cameraMode]);
 
   // Utility function for calculating frequency band averages
-  const average = (arr: Uint8Array): number => {
-    return arr.reduce((a, b) => a + b, 0) / arr.length;
-  };
+  // Removed unused average function
 
   const animate = useCallback((): void => {
     if (!particleSystemsRef.current.length || !frequencyBandsRef.current) return;
       
       // Use frequency bands from useAudioAnalysis hook
-      const {
-        subBass,
-        bass,
-        lowerMid,
-        mid,
-        upperMid,
-        presence,
-        brilliance
-      } = frequencyBandsRef.current;
+      // Frequency bands are accessed directly from frequencyBandsRef.current when needed
       
-      // Update particle systems based on frequency bands
-      particleSystemsRef.current.forEach((system, index) => {
-        const positions = system.points.geometry.attributes.position.array as Float32Array;
-        const initialPositions = system.initialPositions;
-
       const deltaTime = 1/60; // Fixed time step for consistent animation
       timeRef.current += deltaTime;
 
@@ -1050,14 +1047,9 @@ export default function Page() {
 
     requestAnimationFrame(animate);
   }, [
-    analyser,
     currentPreset,
     particleSystemsRef,
-    freqData,
     timeRef,
-    bassData,
-    midData,
-    trebleData,
     cameraMode,
     orbitControlsRef,
     firstPersonControlsRef,

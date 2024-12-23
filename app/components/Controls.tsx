@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import { VisualPreset, PRESETS, RandomizationSettings } from '../types';
 
 // Backdrop overlay component
@@ -46,7 +46,7 @@ export function Controls({
   selectedTrack,
   onTrackChange,
   audioFiles
-}: ControlsProps) {
+}: ControlsProps): ReactElement {
   const [isExpanded, setIsExpanded] = useState(false);
   const [customSettings, setCustomSettings] = useState<CustomSettings>(PRESETS[currentPreset]);
 
@@ -702,4 +702,4 @@ export function Controls({
     </>
   );
 }
-                                            
+                                                     
