@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, type ReactElement } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -12,7 +12,7 @@ const MIN_TOUCH_TARGET = 44; // minimum touch target size in pixels
 // Using OrbitControls directly from drei import above
 type OrbitControlsRef = React.ComponentRef<typeof OrbitControls>;
 
-export const Scene = (): ReactElement => {
+const SceneContent = (): ReactElement => {
   const { gl } = useThree();
   const [isTouching, setIsTouching] = useState(false);
   const orbitControlsRef = useRef<OrbitControlsRef>(null);
@@ -101,5 +101,13 @@ export const Scene = (): ReactElement => {
         />
       </EffectComposer>
     </>
+  );
+}
+
+export const Scene = (): ReactElement => {
+  return (
+    <Canvas>
+      <SceneContent />
+    </Canvas>
   );
 }
