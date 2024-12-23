@@ -320,7 +320,7 @@ export default function Page() {
     return systems;
   }, []);
 
-  const updateVisualPreset = useCallback((preset: string) => {
+  const updateVisualPreset = useCallback((preset: string, customPreset?: Partial<VisualPreset>) => {
     if (!sceneRef.current || !composerRef.current) return;
     
     particleSystemsRef.current.forEach(system => {
@@ -339,7 +339,7 @@ export default function Page() {
     if (bloomPass) {
       bloomPass.strength = presetConfig.bloomStrength;
     }
-  }, [createParticleSystems]);
+  }, [createParticleSystems, setCurrentPreset]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -390,8 +390,34 @@ export default function Page() {
         case ' ':
           togglePlay();
           break;
+        case 'ArrowRight':
+          const nextTrack = audioFiles[(audioFiles.indexOf(selectedTrack) + 1) % audioFiles.length];
+          setSelectedTrack(nextTrack);
+          break;
+        case 'ArrowLeft':
+          const prevTrack = audioFiles[(audioFiles.indexOf(selectedTrack) - 1 + audioFiles.length) % audioFiles.length];
+          setSelectedTrack(prevTrack);
+          break;
+        case 'g':
+          // Cycle through geometry types
+          const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
+          const currentType = PRESETS[currentPreset].geometryType || 'default';
+          const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
+          updateVisualPreset(currentPreset, { ...PRESETS[currentPreset], geometryType: geometryTypes[nextTypeIndex] });
+          break;
         case 'f':
-          document.documentElement.requestFullscreen();
+          if (event.ctrlKey) {
+            document.documentElement.requestFullscreen();
+          } else {
+            // Adjust fluid distortion intensity
+            const fluidPass = composerRef.current?.passes.find(
+              pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.distortionAmount
+            ) as ShaderPass | undefined;
+            if (fluidPass) {
+              const currentAmount = fluidPass.uniforms.distortionAmount.value;
+              fluidPass.uniforms.distortionAmount.value = ((currentAmount * 10 + 1) % 10) / 10;
+            }
+          }
           break;
         case 'Escape':
           if (document.fullscreenElement) {
@@ -401,16 +427,29 @@ export default function Page() {
       }
     };
 
+    const handleMouseDown = (event: MouseEvent) => {
+      if (event.button === 1) { // Middle click
+        // Cycle through geometry types
+        const geometryTypes = ['flower', 'metatron', 'spiral', 'default'] as const;
+        const currentType = PRESETS[currentPreset].geometryType || 'default';
+        const nextTypeIndex = (geometryTypes.indexOf(currentType) + 1) % geometryTypes.length;
+        updateVisualPreset(currentPreset, { ...PRESETS[currentPreset], geometryType: geometryTypes[nextTypeIndex] });
+        event.preventDefault(); // Prevent default middle-click behavior
+      }
+    };
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('keydown', handleKeyPress);
+    window.addEventListener('mousedown', handleMouseDown);
 
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyPress);
+      window.removeEventListener('mousedown', handleMouseDown);
       renderer.dispose();
       scene.clear();
     };
-  }, [createParticleSystems, currentPreset]);
+  }, [createParticleSystems, currentPreset, updateVisualPreset]);
 
   useEffect(() => {
     const animate = () => {
