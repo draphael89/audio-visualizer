@@ -4,12 +4,18 @@ export interface VisualPreset {
   particleSize: number;
   rotationSpeed: number;
   colorPalette: number[];
-  geometryType?: 'flower' | 'metatron' | 'spiral' | 'default';
+  geometryType?: 'flower' | 'metatron' | 'spiral' | 'default' | 'fractal';
   geometryScale?: number;
   geometryRotation?: number;
   pulseIntensity?: number;
   reducedMotion?: boolean;
   performanceMode?: boolean;
+  fractalOptions?: {
+    type: 'dragon' | 'koch' | 'sierpinski' | 'tree';
+    iterations?: number;
+    scale?: number;
+    angle?: number;
+  };
 }
 
 export const PRESETS: Record<string, VisualPreset> = {
@@ -72,5 +78,22 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryScale: 1.618,
     geometryRotation: 0.002,
     pulseIntensity: 1.2
+  },
+  fractalDragon: {
+    particleCount: 55000,
+    bloomStrength: 2.6,
+    particleSize: 0.035,
+    rotationSpeed: 0.0025,
+    colorPalette: [0xff3366, 0x33ff66, 0x6633ff],
+    geometryType: 'fractal',
+    geometryScale: 1.5,
+    geometryRotation: 0.002,
+    pulseIntensity: 1.1,
+    fractalOptions: {
+      type: 'dragon',
+      iterations: 12,
+      scale: 0.5,
+      angle: Math.PI / 2
+    }
   }
-};          
+};             
