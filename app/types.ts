@@ -83,6 +83,14 @@ export interface PsychedelicShaderPass extends BaseShaderPass {
   };
 }
 
+export interface RandomizationSettings {
+  enableParticleRandomization: boolean;
+  enableColorRandomization: boolean;
+  enableGeometryRandomization: boolean;
+  randomSeed: number;
+  intensityFactor: number;
+}
+
 export interface VisualPreset {
   // Core settings
   particleCount: number;
@@ -90,6 +98,9 @@ export interface VisualPreset {
   particleSize: number;
   rotationSpeed: number;
   colorPalette: number[];
+  
+  // Randomization settings
+  randomization?: Partial<RandomizationSettings>;
   
   // Geometry settings
   geometryType?: 'flower' | 'metatron' | 'spiral' | 'default' | 'fractal' | 'mergedSacred' | 'hyperbolic';
@@ -234,4 +245,4 @@ export const PRESETS: Record<string, VisualPreset> = {
     geometryRotation: 0.002,
     pulseIntensity: 1.4
   }
-};                                                 
+};                                                       

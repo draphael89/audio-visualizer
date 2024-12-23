@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { VisualPreset, PRESETS } from '../types';
+import { VisualPreset, PRESETS, RandomizationSettings } from '../types';
 
 // Backdrop overlay component
 interface BackdropProps {
@@ -32,6 +32,10 @@ interface ControlsProps {
   audioFiles?: string[];
 }
 
+type CustomSettings = Omit<VisualPreset, 'randomization'> & {
+  randomization?: Partial<RandomizationSettings>;
+};
+
 export function Controls({
   currentPreset,
   onPresetChange,
@@ -44,7 +48,7 @@ export function Controls({
   audioFiles
 }: ControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [customSettings, setCustomSettings] = useState<VisualPreset>(PRESETS[currentPreset]);
+  const [customSettings, setCustomSettings] = useState<CustomSettings>(PRESETS[currentPreset]);
 
   return (
     <>
@@ -136,6 +140,121 @@ export function Controls({
               onChange={(e) => onFluidDistortionChange(Number(e.target.value))}
               className="w-full"
             />
+          </div>
+
+          {/* Randomization Controls */}
+          <div className="space-y-4 p-4 bg-black/50 rounded-lg backdrop-blur-sm">
+            <h3 className="text-lg font-semibold mb-2">Randomization</h3>
+            
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="particleRandomization"
+                checked={customSettings.randomization?.enableParticleRandomization ?? false}
+                onChange={(e) => {
+                  const newSettings: CustomSettings = {
+                    ...customSettings,
+                    randomization: {
+                      ...customSettings.randomization,
+                      enableParticleRandomization: e.target.checked,
+                      randomSeed: customSettings.randomization?.randomSeed ?? Math.floor(Math.random() * 2147483647),
+                      intensityFactor: customSettings.randomization?.intensityFactor ?? 0.5
+                    }
+                  };
+                  setCustomSettings(newSettings);
+                  onPresetChange(currentPreset, newSettings);
+                }}
+                className="w-4 h-4"
+              />
+              <label htmlFor="particleRandomization">Particle Movement</label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="colorRandomization"
+                checked={customSettings.randomization?.enableColorRandomization ?? false}
+                onChange={(e) => {
+                  const newSettings: CustomSettings = {
+                    ...customSettings,
+                    randomization: {
+                      ...customSettings.randomization,
+                      enableColorRandomization: e.target.checked,
+                      randomSeed: customSettings.randomization?.randomSeed ?? Math.floor(Math.random() * 2147483647),
+                      intensityFactor: customSettings.randomization?.intensityFactor ?? 0.5
+                    }
+                  };
+                  setCustomSettings(newSettings);
+                  onPresetChange(currentPreset, newSettings);
+                }}
+                className="w-4 h-4"
+              />
+              <label htmlFor="colorRandomization">Color Variations</label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="geometryRandomization"
+                checked={customSettings.randomization?.enableGeometryRandomization ?? false}
+                onChange={(e) => {
+                  const newSettings: CustomSettings = {
+                    ...customSettings,
+                    randomization: {
+                      ...customSettings.randomization,
+                      enableGeometryRandomization: e.target.checked,
+                      randomSeed: customSettings.randomization?.randomSeed ?? Math.floor(Math.random() * 2147483647),
+                      intensityFactor: customSettings.randomization?.intensityFactor ?? 0.5
+                    }
+                  };
+                  setCustomSettings(newSettings);
+                  onPresetChange(currentPreset, newSettings);
+                }}
+                className="w-4 h-4"
+              />
+              <label htmlFor="geometryRandomization">Geometric Patterns</label>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="intensitySlider" className="block">Randomization Intensity</label>
+              <input
+                type="range"
+                id="intensitySlider"
+                min="0"
+                max="1"
+                step="0.1"
+                value={customSettings.randomization?.intensityFactor ?? 0.5}
+                onChange={(e) => {
+                  const newSettings: CustomSettings = {
+                    ...customSettings,
+                    randomization: {
+                      ...customSettings.randomization,
+                      intensityFactor: parseFloat(e.target.value)
+                    }
+                  };
+                  setCustomSettings(newSettings);
+                  onPresetChange(currentPreset, newSettings);
+                }}
+                className="w-full"
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                const newSettings: CustomSettings = {
+                  ...customSettings,
+                  randomization: {
+                    ...customSettings.randomization,
+                    randomSeed: Math.floor(Math.random() * 2147483647)
+                  }
+                };
+                setCustomSettings(newSettings);
+                onPresetChange(currentPreset, newSettings);
+              }}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+            >
+              New Random Seed
+            </button>
           </div>
 
           {/* Sacred Geometry */}
@@ -583,4 +702,4 @@ export function Controls({
     </>
   );
 }
-                                   
+                                            
