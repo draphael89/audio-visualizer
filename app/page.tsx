@@ -40,6 +40,7 @@ const FluidDistortionShader = {
 import { Controls } from './components/Controls';
 import { FPSStats } from './components/FPSStats';
 import { PRESETS, type VisualPreset } from './types';
+import { FractalRayMarchShader } from './shaders/FractalRayMarch';
 
 // Sacred geometry generators
 const createFlowerOfLife = (radius: number, layers: number = 6) => {
@@ -385,6 +386,11 @@ export default function Page() {
     const fluidPass = new ShaderPass(FluidDistortionShader);
     composer.addPass(fluidPass);
 
+    // Add fractal ray march pass
+    const fractalPass = new ShaderPass(FractalRayMarchShader);
+    fractalPass.uniforms.u_resolution.value = [window.innerWidth, window.innerHeight];
+    composer.addPass(fractalPass);
+
     const systems = createParticleSystems(scene, PRESETS[currentPreset]);
 
     sceneRef.current = scene;
@@ -514,6 +520,16 @@ export default function Page() {
         const currentPresetConfig = PRESETS[currentPreset];
         const isReducedMotion = currentPresetConfig.reducedMotion;
         const isPerformanceMode = currentPresetConfig.performanceMode;
+
+        // Update fractal shader uniforms
+        const fractalPass = composerRef.current.passes.find(
+          pass => pass instanceof ShaderPass && (pass as ShaderPass).uniforms.u_frequencyData
+        ) as ShaderPass | undefined;
+
+        if (fractalPass) {
+          fractalPass.uniforms.u_time.value += 0.01;
+          fractalPass.uniforms.u_frequencyData.value = Array.from(freqData.current).map(v => v / 255.0);
+          fractalPass.uniforms.u_amplitude.value = 0.5 + (bassData.current * 0.5);
 
         // Update fluid distortion shader uniforms
         const fluidPass = composerRef.current.passes.find(
