@@ -26,7 +26,7 @@
         "name": "next"
       }
     ],
-    "types": ["react", "react-dom", "three"]
+    "types": ["react", "react-dom", "three", "@react-three/fiber", "@react-three/drei"]
   },
   "include": [
     "**/*.ts",
